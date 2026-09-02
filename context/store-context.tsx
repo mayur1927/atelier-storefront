@@ -9,7 +9,7 @@ type StoreContextValue = {
   cart: CartItem[];
   wishlistIds: string[];
   user: User | null;
-  addToCart: (product: Product, selection?: { size?: string; color?: string }) => void;
+  addToCart: (product: Product, selection?: { size?: string; color?: string; image?: string }) => void;
   updateQuantity: (id: string, quantity: number, size?: string, color?: string) => void;
   removeFromCart: (id: string, size?: string, color?: string) => void;
   toggleWishlist: (id: string) => void;
@@ -29,13 +29,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     cart,
     wishlistIds,
     user,
-    addToCart: (product: Product, selection: { size?: string; color?: string } = {}) => setCart((items) => {
+    addToCart: (product: Product, selection: { size?: string; color?: string; image?: string } = {}) => setCart((items) => {
       const size = selection.size ?? product.sizes[0];
       const color = selection.color ?? product.colors[0];
+      const image = selection.image ?? product.image;
       const existing = items.find((item) => item.id === product.id && item.size === size && item.color === color);
       return existing
         ? items.map((item) => item.id === product.id && item.size === size && item.color === color ? { ...item, quantity: item.quantity + 1 } : item)
-        : [...items, { ...product, quantity: 1, size, color }];
+        : [...items, { ...product, image, quantity: 1, size, color }];
     }),
     updateQuantity: (id: string, quantity: number, size?: string, color?: string) => {
       if (quantity < 1) { setCart((items) => items.filter((item) => !(item.id === id && (!size || item.size === size) && (!color || item.color === color)))); return; }

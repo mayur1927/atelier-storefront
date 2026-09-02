@@ -1,5 +1,10 @@
 export type ProductCategory = "Men" | "Women" | "Footwear" | "Bags" | "Watches";
 
+export type ProductVariant = {
+  color: string;
+  image: string;
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -11,6 +16,11 @@ export type Product = {
   colors: string[];
   sizes: string[];
   image: string;
+  /**
+   * Optional colour-specific product images. Products without separate source
+   * imagery retain their supplied product image for every valid colour.
+   */
+  variants?: ProductVariant[];
   description: string;
   isBestSeller?: boolean;
 };
@@ -44,6 +54,20 @@ export const products: Product[] = [
 export const bestSellers = products.filter((product) => product.isBestSeller);
 
 export const brands = [...new Set(products.map((product) => product.brand))];
+
+export function getProductVariants(product: Product): ProductVariant[] {
+  if (product.variants?.length) return product.variants;
+
+  // The existing mock catalogue supplies one source image per product. Keep
+  // every colour available while providing a consistent variant contract to
+  // the product detail and cart flows.
+  return product.colors.map((color) => ({ color, image: product.image }));
+}
+
+export function getProductVariant(product: Product, color: string): ProductVariant {
+  return getProductVariants(product).find((variant) => variant.color === color)
+    ?? getProductVariants(product)[0];
+}
 
 export function getProduct(id: string) {
   return products.find((product) => product.id === id);
