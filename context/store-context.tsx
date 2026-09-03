@@ -10,6 +10,7 @@ import {
 import type { Product } from "@/lib/mockData";
 
 export type CartItem = Product & {
+  cartItemId?: string;
   quantity: number;
   size: string;
   color: string;
@@ -59,6 +60,7 @@ function convertDatabaseCart(items: any[]): CartItem[] {
 
     return {
       ...product,
+      cartItemId: item.id,
       image:
         item.variant?.images?.[0]?.url ||
         product.image,
@@ -133,6 +135,7 @@ export function StoreProvider({
       wishlistIds,
       user,
 
+      // Add item to database cart.
       addToCart: async (
         product: Product,
         selection: {
@@ -207,6 +210,7 @@ export function StoreProvider({
         }
       },
 
+      // Update quantity in database.
       updateQuantity: async (
         id: string,
         quantity: number,
@@ -220,34 +224,41 @@ export function StoreProvider({
             (!color || cartItem.color === color)
         );
 
-        if (!item) return;
+        if (!item?.cartItemId) return;
 
-        // We need the database item ID for PATCH.
-        // For now, update the UI immediately.
-        setCart((items) =>
-          quantity < 1
-            ? items.filter(
-                (cartItem) =>
-                  !(
-                    cartItem.id === id &&
-                    (!size || cartItem.size === size) &&
-                    (!color || cartItem.color === color)
-                  )
-              )
-            : items.map((cartItem) =>
-                cartItem.id === id &&
-                (!size || cartItem.size === size) &&
-                (!color || cartItem.color === color)
-                  ? { ...cartItem, quantity }
-                  : cartItem
-              )
-        );
+        try {
+          const response = await fetch("/api/cart", {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              itemId: item.cartItemId,
+              quantity,
+            }),
+          });
 
-        console.warn(
-          "Quantity updated locally. Database quantity sync will be connected in the next cart step."
-        );
+          if (!response.ok) {
+            const data = await response.json();
+            console.error(data.error || "Failed to update cart.");
+            return;
+          }
+
+          const cartResponse = await fetch("/api/cart");
+
+          if (cartResponse.ok) {
+            const data = await cartResponse.json();
+
+            setCart(
+              convertDatabaseCart(data.items || [])
+            );
+          }
+        } catch (error) {
+          console.error("Failed to update cart:", error);
+        }
       },
 
+      // Remove item from database.
       removeFromCart: async (
         id: string,
         size?: string,
@@ -260,22 +271,34 @@ export function StoreProvider({
             (!color || cartItem.color === color)
         );
 
-        if (!item) return;
+        if (!item?.cartItemId) return;
 
-        setCart((items) =>
-          items.filter(
-            (cartItem) =>
-              !(
-                cartItem.id === id &&
-                (!size || cartItem.size === size) &&
-                (!color || cartItem.color === color)
-              )
-          )
-        );
+        try {
+          const response = await fetch("/api/cart", {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              itemId: item.cartItemId,
+            }),
+          });
 
-        console.warn(
-          "Item removed locally. Database deletion will be connected in the next cart step."
-        );
+          if (!response.ok) {
+            const data = await response.json();
+            console.error(data.error || "Failed to remove item.");
+            return;
+          }
+
+          setCart((items) =>
+            items.filter(
+              (cartItem) =>
+                cartItem.cartItemId !== item.cartItemId
+            )
+          );
+        } catch (error) {
+          console.error("Failed to remove item:", error);
+        }
       },
 
       toggleWishlist: (id: string) =>
@@ -320,7 +343,9 @@ export function useStore() {
   const value = useContext(StoreContext);
 
   if (!value) {
-    throw new Error("useStore must be used within StoreProvider");
+    throw new Error(
+      "useStore must be used within StoreProvider"
+    );
   }
 
   return value;
