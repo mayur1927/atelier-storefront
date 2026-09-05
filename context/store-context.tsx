@@ -22,6 +22,18 @@ export type User = {
   email: string;
 };
 
+type DatabaseCartItem = {
+  id: string;
+  quantity: number;
+  size?: string | null;
+  variantId?: string | null;
+  product: Product;
+  variant?: {
+    color?: string | null;
+    images?: { url: string }[];
+  } | null;
+};
+
 type StoreContextValue = {
   cart: CartItem[];
   wishlistIds: string[];
@@ -33,6 +45,7 @@ type StoreContextValue = {
       color?: string;
       image?: string;
       variantId?: string;
+      quantity?: number;
     }
   ) => Promise<void>;
   updateQuantity: (
@@ -54,7 +67,7 @@ type StoreContextValue = {
 
 const StoreContext = createContext<StoreContextValue | null>(null);
 
-function convertDatabaseCart(items: any[]): CartItem[] {
+function convertDatabaseCart(items: DatabaseCartItem[]): CartItem[] {
   return items.map((item) => {
     const product = item.product;
 
@@ -143,11 +156,13 @@ export function StoreProvider({
           color?: string;
           image?: string;
           variantId?: string;
+          quantity?: number;
         } = {}
       ) => {
         const size = selection.size ?? product.sizes[0];
         const color = selection.color ?? product.colors[0];
         const image = selection.image ?? product.image;
+        const addQuantity = Math.max(1, selection.quantity ?? 1);
 
         try {
           const response = await fetch("/api/cart", {
@@ -159,7 +174,7 @@ export function StoreProvider({
               productId: product.id,
               variantId: selection.variantId,
               size,
-              quantity: 1,
+              quantity: addQuantity,
             }),
           });
 
@@ -191,7 +206,7 @@ export function StoreProvider({
                   item.color === color
                     ? {
                         ...item,
-                        quantity: item.quantity + 1,
+                        quantity: item.quantity + addQuantity,
                       }
                     : item
                 )
@@ -200,7 +215,7 @@ export function StoreProvider({
                   {
                     ...product,
                     image,
-                    quantity: 1,
+                    quantity: addQuantity,
                     size,
                     color,
                     variantId: selection.variantId,

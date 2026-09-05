@@ -26,13 +26,12 @@ export function ProductDetail({ product }: { product: Product }) {
   const inWishlist = wishlistIds.includes(product.id);
 
   const add = async () => {
-    for (let i = 0; i < quantity; i += 1) {
-      await addToCart(product, {
-        size,
-        color,
-        image: selectedImage,
-      });
-    }
+    await addToCart(product, {
+      size,
+      color,
+      image: selectedImage,
+      quantity,
+    });
   };
 
   const handleColorChange = (variant: {
