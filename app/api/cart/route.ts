@@ -79,8 +79,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
+    const product = await prisma.product.findFirst({
+      where: {
+        OR: [
+          { id: productId },
+          { slug: productId },
+        ],
+      },
     });
 
     if (!product) {
@@ -90,26 +95,18 @@ export async function POST(request: Request) {
       );
     }
 
+    let resolvedVariantId: string | null = null;
+
     if (variantId) {
       const variant = await prisma.productVariant.findFirst({
         where: {
           id: variantId,
-          productId,
+          productId: product.id,
         },
       });
 
-      if (!variant) {
-        return NextResponse.json(
-          { error: "Product variant not found." },
-          { status: 404 }
-        );
-      }
-
-      if (variant.inventory < quantity) {
-        return NextResponse.json(
-          { error: "Not enough stock available." },
-          { status: 400 }
-        );
+      if (variant) {
+        resolvedVariantId = variant.id;
       }
     }
 
@@ -122,8 +119,8 @@ export async function POST(request: Request) {
     const existingItem = await prisma.cartItem.findFirst({
       where: {
         cartId: cart.id,
-        productId,
-        variantId,
+        productId: product.id,
+        variantId: resolvedVariantId,
         size,
       },
     });
@@ -141,8 +138,8 @@ export async function POST(request: Request) {
       await prisma.cartItem.create({
         data: {
           cartId: cart.id,
-          productId,
-          variantId,
+          productId: product.id,
+          variantId: resolvedVariantId,
           size,
           quantity,
         },
