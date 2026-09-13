@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { Heart, ShoppingBag, Star } from "lucide-react";
-import type { Product } from "@/lib/mockData";
+import type { Product } from "@/lib/products";
 import { useStore } from "@/context/store-context";
 
-export function ProductCard({ product }: { product: Product }) {
+export function ProductCard({ product }: { product: Product | any }) {
   const { addToCart, toggleWishlist, wishlistIds } = useStore();
   const inWishlist = wishlistIds.includes(product.id);
 

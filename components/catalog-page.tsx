@@ -5,25 +5,31 @@ import { SlidersHorizontal, X } from "lucide-react";
 import {
   brands,
   categories,
-  products,
+  products as mockProducts,
   type ProductCategory,
 } from "@/lib/mockData";
 import { ProductCard } from "@/components/product-card";
 import { Breadcrumbs } from "@/components/shared";
+import type { Product } from "@/lib/products";
 
 type Props = {
   title: string;
   query?: string;
   initialCategory?: string;
+  initialProducts?: Product[];
 };
 
 const canonical = (value: string) =>
   value.toLowerCase().replace(/[^a-z]/g, "");
 
-export function CatalogPage({ title, query = "", initialCategory }: Props) {
-  const [selectedCategories, setSelectedCategories] = useState<
-    ProductCategory[]
-  >(() => {
+export function CatalogPage({
+  title,
+  query = "",
+  initialCategory,
+  initialProducts,
+}: Props) {
+  const products = (initialProducts && initialProducts.length > 0) ? initialProducts : mockProducts;
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(() => {
     const found = categories.find(
       (category) => canonical(category.name) === canonical(initialCategory ?? "")
     );

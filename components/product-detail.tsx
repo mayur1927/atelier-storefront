@@ -4,14 +4,27 @@ import Link from "next/link";
 import { Heart, ShoppingBag, Star } from "lucide-react";
 import { useState } from "react";
 import {
-  getProductVariants,
-  type Product,
+  getProductVariants as getMockVariants,
 } from "@/lib/mockData";
+import type { Product, ProductVariant } from "@/lib/products";
 import { useStore } from "@/context/store-context";
 import { Breadcrumbs, QuantityPicker } from "@/components/shared";
 
-export function ProductDetail({ product }: { product: Product }) {
-  const variants = getProductVariants(product);
+type VariantItem = {
+  id?: string;
+  color: string;
+  colour?: string;
+  sku?: string;
+  inventory?: number;
+  image: string;
+  images?: string[];
+};
+
+export function ProductDetail({ product }: { product: Product | any }) {
+  const variants: VariantItem[] =
+    product.variants && product.variants.length > 0
+      ? product.variants
+      : getMockVariants(product);
 
   const [size, setSize] = useState(product.sizes[0]);
   const [color, setColor] = useState(variants[0]?.color || product.colors[0]);
@@ -184,7 +197,7 @@ export function ProductDetail({ product }: { product: Product }) {
             <p className="text-sm font-bold">Size</p>
 
             <div className="mt-3 flex flex-wrap gap-2">
-              {product.sizes.map((option) => (
+              {(product.sizes as string[]).map((option: string) => (
                 <button
                   key={option}
                   type="button"

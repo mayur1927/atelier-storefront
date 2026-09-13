@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getProduct } from "@/lib/mockData";
+import { getDbProductByIdOrSlug } from "@/lib/products";
+import { getProduct as getMockProduct } from "@/lib/mockData";
 import { ProductDetail } from "@/components/product-detail";
 
 export default async function ProductPage({
@@ -8,7 +9,26 @@ export default async function ProductPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const product = getProduct(id);
+  let product = await getDbProductByIdOrSlug(id);
+
+  if (!product) {
+    const mock = getMockProduct(id);
+    if (mock) {
+      product = {
+        ...mock,
+        slug: mock.id,
+        variants: mock.colors.map((c) => ({
+          id: `${mock.id}-${c}`,
+          color: c,
+          colour: c,
+          sku: `${mock.id}-${c}`,
+          inventory: 10,
+          image: mock.image,
+          images: [mock.image],
+        })),
+      };
+    }
+  }
 
   if (!product) {
     return (

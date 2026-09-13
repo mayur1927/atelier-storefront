@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, Landmark, Smartphone, WalletCards } from "lucide-react";
+import { CreditCard, Landmark, Smartphone, WalletCards, Tag } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/context/store-context";
@@ -19,13 +19,56 @@ export function CheckoutPage() {
     zip: "",
   });
 
+  const [couponCode, setCouponCode] = useState("");
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [couponMessage, setCouponMessage] = useState("");
+  const [couponError, setCouponError] = useState("");
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+
   const update = (key: keyof typeof form, value: string) =>
     setForm({ ...form, [key]: value });
 
+  const applyCoupon = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!couponCode.trim()) return;
+
+    setValidatingCoupon(true);
+    setCouponError("");
+    setCouponMessage("");
+
+    try {
+      const res = await fetch("/api/coupons", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: couponCode.trim() }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setCouponError(data.error || "Invalid coupon.");
+        setDiscountAmount(0);
+        return;
+      }
+
+      setDiscountAmount(data.coupon.discountAmount);
+      setCouponMessage(`Coupon applied: $${data.coupon.discountAmount} off`);
+    } catch {
+      setCouponError("Failed to validate coupon.");
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    sessionStorage.setItem("atelier_shipping", JSON.stringify(form));
+    if (discountAmount > 0) {
+      sessionStorage.setItem("atelier_coupon", couponCode.trim().toUpperCase());
+    }
     router.push("/payment");
   };
+
+  const details = priceDetails(cart, discountAmount);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
@@ -99,7 +142,37 @@ export function CheckoutPage() {
 
         <div className="space-y-4">
           <OrderPreview />
-          <OrderDetails action={false} details={priceDetails(cart)} />
+
+          {/* COUPON INPUT */}
+          <div className="rounded-2xl border border-zinc-200 bg-white p-5">
+            <div className="flex items-center gap-2 text-sm font-bold">
+              <Tag size={16} /> Have a coupon?
+            </div>
+            <form onSubmit={applyCoupon} className="mt-3 flex gap-2">
+              <input
+                type="text"
+                placeholder="e.g. ATELIER100"
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value)}
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs uppercase outline-none focus:border-zinc-950"
+              />
+              <button
+                type="submit"
+                disabled={validatingCoupon}
+                className="rounded-lg bg-zinc-950 px-4 py-2 text-xs font-bold text-white hover:bg-zinc-800 disabled:opacity-50"
+              >
+                APPLY
+              </button>
+            </form>
+            {couponMessage && (
+              <p className="mt-2 text-xs font-semibold text-green-700">{couponMessage}</p>
+            )}
+            {couponError && (
+              <p className="mt-2 text-xs font-semibold text-red-600">{couponError}</p>
+            )}
+          </div>
+
+          <OrderDetails action={false} details={details} />
         </div>
       </div>
     </div>
@@ -169,6 +242,8 @@ function OrderPreview() {
 
 export function PaymentPage() {
   const [method, setMethod] = useState("card");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
   const { cart, clearCart } = useStore();
   const router = useRouter();
 
@@ -199,9 +274,37 @@ export function PaymentPage() {
     },
   ];
 
-  const pay = () => {
-    clearCart();
-    router.push("/order-success");
+  const pay = async () => {
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const couponCode = sessionStorage.getItem("atelier_coupon") || undefined;
+
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          couponCode,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Failed to place order.");
+        setSubmitting(false);
+        return;
+      }
+
+      sessionStorage.removeItem("atelier_shipping");
+      sessionStorage.removeItem("atelier_coupon");
+      clearCart();
+      router.push("/order-success");
+    } catch {
+      setError("An unexpected error occurred while processing your order.");
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -245,11 +348,18 @@ export function PaymentPage() {
         ))}
       </div>
 
+      {error && (
+        <p className="mt-4 rounded-lg bg-red-50 p-3 text-xs font-semibold text-red-600">
+          {error}
+        </p>
+      )}
+
       <button
         onClick={pay}
-        className="mt-6 w-full rounded-xl bg-zinc-950 py-4 text-xs font-bold tracking-[0.12em] text-white hover:bg-zinc-700"
+        disabled={submitting || !cart.length}
+        className="mt-6 w-full rounded-xl bg-zinc-950 py-4 text-xs font-bold tracking-[0.12em] text-white hover:bg-zinc-700 disabled:opacity-50"
       >
-        PAY ${priceDetails(cart).total.toFixed(2)}
+        {submitting ? "PROCESSING..." : `PAY $${priceDetails(cart).total.toFixed(2)}`}
       </button>
     </div>
   );

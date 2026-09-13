@@ -142,6 +142,29 @@ export function StoreProvider({
     loadCart();
   }, [user]);
 
+  // Load database wishlist whenever a user is available.
+  useEffect(() => {
+    if (!user) {
+      setWishlistIds([]);
+      return;
+    }
+
+    const loadWishlist = async () => {
+      try {
+        const response = await fetch("/api/wishlist");
+        if (!response.ok) return;
+        const data = await response.json();
+        if (Array.isArray(data.ids)) {
+          setWishlistIds(data.ids);
+        }
+      } catch (error) {
+        console.error("Failed to load wishlist:", error);
+      }
+    };
+
+    loadWishlist();
+  }, [user]);
+
   const value = useMemo(
     () => ({
       cart,
@@ -316,12 +339,31 @@ export function StoreProvider({
         }
       },
 
-      toggleWishlist: (id: string) =>
+      toggleWishlist: async (id: string) => {
+        // Optimistic update
         setWishlistIds((ids) =>
           ids.includes(id)
             ? ids.filter((item) => item !== id)
             : [...ids, id]
-        ),
+        );
+
+        try {
+          const res = await fetch("/api/wishlist", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productId: id }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.ids)) {
+              setWishlistIds(data.ids);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to sync wishlist:", err);
+        }
+      },
 
       login: (email: string, name?: string) =>
         setUser({
@@ -340,6 +382,7 @@ export function StoreProvider({
       logout: () => {
         setUser(null);
         setCart([]);
+        setWishlistIds([]);
       },
 
       clearCart: () => setCart([]),

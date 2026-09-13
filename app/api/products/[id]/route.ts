@@ -24,10 +24,14 @@ export async function GET(
       include: {
         variants: {
           include: {
-            images: true,
+            images: {
+              orderBy: { position: "asc" },
+            },
           },
         },
-        images: true,
+        images: {
+          orderBy: { position: "asc" },
+        },
       },
     });
 
@@ -38,7 +42,22 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(product);
+    const formattedProduct = {
+      ...product,
+      price: Number(product.price),
+      colors: Array.from(new Set(product.variants.map((v) => v.colour))),
+      variants: product.variants.map((v) => ({
+        id: v.id,
+        color: v.colour,
+        colour: v.colour,
+        sku: v.sku,
+        inventory: v.inventory,
+        image: v.images[0]?.url || product.image,
+        images: v.images.map((img) => img.url),
+      })),
+    };
+
+    return NextResponse.json(formattedProduct);
   } catch (error) {
     console.error("Failed to fetch product:", error);
 

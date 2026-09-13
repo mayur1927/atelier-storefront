@@ -41,6 +41,14 @@ export async function getSessionUserId() {
   }
 }
 
+export async function requireAuth(): Promise<string> {
+  const userId = await getSessionUserId();
+  if (!userId) {
+    throw new Error("UNAUTHORIZED");
+  }
+  return userId;
+}
+
 export async function clearSession() {
   const cookieStore = await cookies();
 

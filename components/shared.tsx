@@ -66,15 +66,21 @@ export function QuantityPicker({
   );
 }
 
-export function priceDetails(items: { price: number; quantity: number }[]) {
+export function priceDetails(
+  items: { price: number; quantity: number }[],
+  discountAmount: number = 0
+) {
   const subtotal = items.reduce(
     (total, item) => total + item.price * item.quantity,
     0
   );
+  const discount = Math.min(Math.max(0, discountAmount), subtotal);
+  const discountedSubtotal = Math.max(0, subtotal - discount);
   const shipping = subtotal === 0 || subtotal >= 75 ? 0 : 8;
-  const tax = subtotal * 0.06;
+  const tax = Number((discountedSubtotal * 0.06).toFixed(2));
+  const total = Number((discountedSubtotal + shipping + tax).toFixed(2));
 
-  return { subtotal, shipping, tax, total: subtotal + shipping + tax };
+  return { subtotal, discount, shipping, tax, total };
 }
 
 export function Price({ value }: { value: number }) {

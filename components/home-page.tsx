@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { ArrowRight, Headphones, LockKeyhole, RotateCcw, Truck } from "lucide-react";
 import { FormEvent, useState } from "react";
-import { bestSellers, categories } from "@/lib/mockData";
+import { bestSellers as mockBestSellers, categories } from "@/lib/mockData";
 import { ProductCard } from "@/components/product-card";
+import type { Product } from "@/lib/products";
 
 const features = [
   { label: "Free shipping", detail: "On orders over $75", icon: Truck },
@@ -13,12 +14,13 @@ const features = [
   { label: "Here for you", detail: "Support, 24/7", icon: Headphones },
 ];
 
-export function HomePage() {
+export function HomePage({ bestSellers = mockBestSellers }: { bestSellers?: Product[] | typeof mockBestSellers }) {
   const [email, setEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
   const [subscribed, setSubscribed] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const subscribe = (event: FormEvent<HTMLFormElement>) => {
+  const subscribe = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const trimmedEmail = email.trim();
@@ -33,8 +35,27 @@ export function HomePage() {
       return;
     }
 
-    setSubscribed(true);
-    setNewsletterMessage("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/newsletter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmedEmail }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setNewsletterMessage(data.error || "Failed to subscribe.");
+        return;
+      }
+
+      setSubscribed(true);
+      setNewsletterMessage("");
+    } catch {
+      setNewsletterMessage("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

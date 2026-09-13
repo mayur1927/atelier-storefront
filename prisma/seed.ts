@@ -100,7 +100,30 @@ async function main() {
     console.log(`✓ ${product.name}`);
   }
 
-  console.log(`\n✅ Seeded ${products.length} products successfully.`);
+  console.log("\n🎟️ Seeding coupons...");
+  const coupons = [
+    { code: "ATELIER100", discountAmount: 100, active: true },
+    { code: "WELCOME10", discountAmount: 10, active: true },
+    { code: "SUMMER20", discountAmount: 20, active: true },
+  ];
+
+  for (const coupon of coupons) {
+    await prisma.coupon.upsert({
+      where: { code: coupon.code },
+      update: {
+        discountAmount: coupon.discountAmount,
+        active: coupon.active,
+      },
+      create: {
+        code: coupon.code,
+        discountAmount: coupon.discountAmount,
+        active: coupon.active,
+      },
+    });
+    console.log(`✓ Coupon: ${coupon.code} ($${coupon.discountAmount} off)`);
+  }
+
+  console.log(`\n✅ Seeded ${products.length} products and ${coupons.length} coupons successfully.`);
 }
 
 main()
