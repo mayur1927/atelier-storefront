@@ -2,21 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
-import {
-  brands,
-  categories,
-  products as mockProducts,
-  type ProductCategory,
-} from "@/lib/mockData";
 import { ProductCard } from "@/components/product-card";
 import { Breadcrumbs } from "@/components/shared";
-import type { Product } from "@/lib/products";
+import type { Product, CategoryInfo } from "@/lib/products";
 
 type Props = {
   title: string;
   query?: string;
   initialCategory?: string;
   initialProducts?: Product[];
+  categories?: CategoryInfo[];
+  brands?: string[];
 };
 
 const canonical = (value: string) =>
@@ -26,14 +22,28 @@ export function CatalogPage({
   title,
   query = "",
   initialCategory,
-  initialProducts,
+  initialProducts = [],
+  categories = [],
+  brands = [],
 }: Props) {
-  const products = (initialProducts && initialProducts.length > 0) ? initialProducts : mockProducts;
+  const products = initialProducts;
+
+  const derivedCategories = useMemo(() => {
+    if (categories.length > 0) return categories.map((c) => c.name);
+    return Array.from(new Set(products.map((p) => p.category))).filter(Boolean);
+  }, [categories, products]);
+
+  const derivedBrands = useMemo(() => {
+    if (brands.length > 0) return brands;
+    return Array.from(new Set(products.map((p) => p.brand))).filter(Boolean);
+  }, [brands, products]);
+
   const [selectedCategories, setSelectedCategories] = useState<string[]>(() => {
-    const found = categories.find(
-      (category) => canonical(category.name) === canonical(initialCategory ?? "")
+    if (!initialCategory || initialCategory === "all") return [];
+    const found = derivedCategories.find(
+      (category) => canonical(category) === canonical(initialCategory)
     );
-    return found ? [found.name] : [];
+    return found ? [found] : [initialCategory];
   });
 
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
@@ -50,14 +60,16 @@ export function CatalogPage({
       const matchesQuery = !query || text.includes(query.toLowerCase());
       const matchesCategory =
         !selectedCategories.length ||
-        selectedCategories.includes(product.category);
+        selectedCategories.some(
+          (cat) => canonical(cat) === canonical(product.category)
+        );
       const matchesBrand =
         !selectedBrands.length || selectedBrands.includes(product.brand);
       const matchesPrice = product.price <= maxPrice;
       const matchesSize =
-        !sizes.length || product.sizes.some((size) => sizes.includes(size));
+        !sizes.length || (product.sizes && product.sizes.some((size) => sizes.includes(size)));
       const matchesColor =
-        !colors.length || product.colors.some((color) => colors.includes(color));
+        !colors.length || (product.colors && product.colors.some((color) => colors.includes(color)));
 
       return (
         matchesQuery &&
@@ -75,7 +87,7 @@ export function CatalogPage({
       if (sort === "rating") return b.rating - a.rating;
       return b.reviewCount - a.reviewCount;
     });
-  }, [colors, maxPrice, query, selectedBrands, selectedCategories, sizes, sort]);
+  }, [colors, maxPrice, products, query, selectedBrands, selectedCategories, sizes, sort]);
 
   const perPage = 8;
   const pageCount = Math.max(1, Math.ceil(filtered.length / perPage));
@@ -112,18 +124,20 @@ export function CatalogPage({
         </button>
       </div>
 
-      <FilterTitle title="Categories">
-        {categories.map((category) => (
-          <Check
-            key={category.name}
-            checked={selectedCategories.includes(category.name)}
-            onChange={() =>
-              toggle(category.name, selectedCategories, setSelectedCategories)
-            }
-            label={category.name}
-          />
-        ))}
-      </FilterTitle>
+      {derivedCategories.length > 0 && (
+        <FilterTitle title="Categories">
+          {derivedCategories.map((categoryName) => (
+            <Check
+              key={categoryName}
+              checked={selectedCategories.includes(categoryName)}
+              onChange={() =>
+                toggle(categoryName, selectedCategories, setSelectedCategories)
+              }
+              label={categoryName}
+            />
+          ))}
+        </FilterTitle>
+      )}
 
       <FilterTitle title={`Price up to $${maxPrice}`}>
         <input
@@ -145,18 +159,20 @@ export function CatalogPage({
         </div>
       </FilterTitle>
 
-      <FilterTitle title="Brand">
-        {brands.map((brand) => (
-          <Check
-            key={brand}
-            checked={selectedBrands.includes(brand)}
-            onChange={() =>
-              toggle(brand, selectedBrands, setSelectedBrands)
-            }
-            label={brand}
-          />
-        ))}
-      </FilterTitle>
+      {derivedBrands.length > 0 && (
+        <FilterTitle title="Brand">
+          {derivedBrands.map((brandName) => (
+            <Check
+              key={brandName}
+              checked={selectedBrands.includes(brandName)}
+              onChange={() =>
+                toggle(brandName, selectedBrands, setSelectedBrands)
+              }
+              label={brandName}
+            />
+          ))}
+        </FilterTitle>
+      )}
 
       <FilterTitle title="Size">
         <div className="flex flex-wrap gap-2">
@@ -262,21 +278,23 @@ export function CatalogPage({
             </div>
           )}
 
-          <div className="mt-12 flex justify-center gap-2">
-            {Array.from({ length: pageCount }, (_, index) => (
-              <button
-                key={index}
-                onClick={() => setPage(index + 1)}
-                className={`grid h-9 w-9 place-items-center rounded-md border text-sm ${
-                  page === index + 1
-                    ? "border-zinc-950 bg-zinc-950 text-white"
-                    : "border-zinc-200"
-                }`}
-              >
-                {index + 1}
-              </button>
-            ))}
-          </div>
+          {pageCount > 1 && (
+            <div className="mt-12 flex justify-center gap-2">
+              {Array.from({ length: pageCount }, (_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setPage(index + 1)}
+                  className={`grid h-9 w-9 place-items-center rounded-md border text-sm ${
+                    page === index + 1
+                      ? "border-zinc-950 bg-zinc-950 text-white"
+                      : "border-zinc-200"
+                  }`}
+                >
+                  {index + 1}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

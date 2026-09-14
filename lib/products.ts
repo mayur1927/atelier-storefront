@@ -27,6 +27,84 @@ export type Product = {
   variants: ProductVariant[];
 };
 
+export type CategoryInfo = {
+  name: string;
+  caption: string;
+  image: string;
+};
+
+const CATEGORY_METADATA: Record<string, { caption: string; image: string }> = {
+  Men: {
+    caption: "Everyday tailoring",
+    image:
+      "https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=800&q=80",
+  },
+  Women: {
+    caption: "Effortless layers",
+    image:
+      "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=800&q=80",
+  },
+  Footwear: {
+    caption: "Grounded in comfort",
+    image:
+      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80",
+  },
+  Bags: {
+    caption: "Carry it beautifully",
+    image:
+      "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=800&q=80",
+  },
+  Watches: {
+    caption: "Time, refined",
+    image:
+      "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=800&q=80",
+  },
+};
+
+export async function getDbCategories(): Promise<CategoryInfo[]> {
+  try {
+    const results = await prisma.product.findMany({
+      select: {
+        category: true,
+      },
+      distinct: ["category"],
+    });
+
+    return results
+      .map((r) => r.category)
+      .filter(Boolean)
+      .map((cat) => ({
+        name: cat,
+        caption: CATEGORY_METADATA[cat]?.caption || "Curated collection",
+        image:
+          CATEGORY_METADATA[cat]?.image ||
+          "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80",
+      }));
+  } catch (error) {
+    console.error("Failed to load categories from database:", error);
+    return Object.entries(CATEGORY_METADATA).map(([name, meta]) => ({
+      name,
+      ...meta,
+    }));
+  }
+}
+
+export async function getDbBrands(): Promise<string[]> {
+  try {
+    const results = await prisma.product.findMany({
+      select: {
+        brand: true,
+      },
+      distinct: ["brand"],
+    });
+
+    return results.map((r) => r.brand).filter(Boolean);
+  } catch (error) {
+    console.error("Failed to load brands from database:", error);
+    return [];
+  }
+}
+
 export async function getDbProducts(filters?: {
   category?: string;
   brand?: string;

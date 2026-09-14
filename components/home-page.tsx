@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { ArrowRight, Headphones, LockKeyhole, RotateCcw, Truck } from "lucide-react";
 import { FormEvent, useState } from "react";
-import { bestSellers as mockBestSellers, categories } from "@/lib/mockData";
 import { ProductCard } from "@/components/product-card";
-import type { Product } from "@/lib/products";
+import type { Product, CategoryInfo } from "@/lib/products";
 
 const features = [
   { label: "Free shipping", detail: "On orders over $75", icon: Truck },
@@ -14,7 +13,13 @@ const features = [
   { label: "Here for you", detail: "Support, 24/7", icon: Headphones },
 ];
 
-export function HomePage({ bestSellers = mockBestSellers }: { bestSellers?: Product[] | typeof mockBestSellers }) {
+export function HomePage({
+  bestSellers = [],
+  categories = [],
+}: {
+  bestSellers?: Product[];
+  categories?: CategoryInfo[];
+}) {
   const [email, setEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
   const [subscribed, setSubscribed] = useState(false);
@@ -107,51 +112,53 @@ export function HomePage({ bestSellers = mockBestSellers }: { bestSellers?: Prod
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="mb-8 flex items-end justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-400">
-              Explore the edit
-            </p>
+      {categories.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="mb-8 flex items-end justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-400">
+                Explore the edit
+              </p>
 
-            <h2 className="mt-2 text-3xl font-black tracking-[-0.05em] sm:text-4xl">
-              Top categories
-            </h2>
+              <h2 className="mt-2 text-3xl font-black tracking-[-0.05em] sm:text-4xl">
+                Top categories
+              </h2>
+            </div>
+
+            <Link
+              href="/category/all"
+              className="hidden items-center gap-1 text-sm font-semibold underline-offset-4 hover:underline sm:flex"
+            >
+              View all <ArrowRight size={15} />
+            </Link>
           </div>
 
-          <Link
-            href="/category/all"
-            className="hidden items-center gap-1 text-sm font-semibold underline-offset-4 hover:underline sm:flex"
-          >
-            View all <ArrowRight size={15} />
-          </Link>
-        </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {categories.map((category) => (
+              <Link
+                key={category.name}
+                href={`/category/${category.name.toLowerCase()}`}
+                className="group relative aspect-[4/5] overflow-hidden rounded-2xl bg-zinc-200"
+              >
+                <img
+                  src={category.image}
+                  alt={category.name}
+                  className="h-full w-full object-cover grayscale transition duration-500 group-hover:scale-105 group-hover:grayscale-0"
+                />
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {categories.map((category) => (
-            <Link
-              key={category.name}
-              href={`/category/${category.name.toLowerCase()}`}
-              className="group relative aspect-[4/5] overflow-hidden rounded-2xl bg-zinc-200"
-            >
-              <img
-                src={category.image}
-                alt={category.name}
-                className="h-full w-full object-cover grayscale transition duration-500 group-hover:scale-105 group-hover:grayscale-0"
-              />
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/75 via-zinc-950/10 to-transparent" />
 
-              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/75 via-zinc-950/10 to-transparent" />
-
-              <div className="absolute inset-x-4 bottom-4 text-white">
-                <h3 className="text-lg font-bold">{category.name}</h3>
-                <p className="mt-0.5 text-xs text-zinc-200">
-                  {category.caption}
-                </p>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+                <div className="absolute inset-x-4 bottom-4 text-white">
+                  <h3 className="text-lg font-bold">{category.name}</h3>
+                  <p className="mt-0.5 text-xs text-zinc-200">
+                    {category.caption}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section
         id="best-selling"
@@ -176,13 +183,17 @@ export function HomePage({ bestSellers = mockBestSellers }: { bestSellers?: Prod
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          <ProductCard product={bestSellers[0]} />
-
-          {bestSellers.slice(1).map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
+        {bestSellers.length > 0 ? (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {bestSellers.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-zinc-200 py-12 text-center text-sm text-zinc-500">
+            No products available at the moment.
+          </div>
+        )}
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
@@ -227,7 +238,8 @@ export function HomePage({ bestSellers = mockBestSellers }: { bestSellers?: Prod
 
                 <button
                   type="submit"
-                  className="rounded-full bg-zinc-700 px-5 text-xs font-bold tracking-[0.1em] transition hover:bg-zinc-600"
+                  disabled={loading}
+                  className="rounded-full bg-zinc-700 px-5 text-xs font-bold tracking-[0.1em] transition hover:bg-zinc-600 disabled:opacity-50"
                 >
                   JOIN
                 </button>

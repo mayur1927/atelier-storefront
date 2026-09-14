@@ -3,31 +3,21 @@
 import Link from "next/link";
 import { Heart, ShoppingBag, Star } from "lucide-react";
 import { useState } from "react";
-import {
-  getProductVariants as getMockVariants,
-} from "@/lib/mockData";
 import type { Product, ProductVariant } from "@/lib/products";
 import { useStore } from "@/context/store-context";
 import { Breadcrumbs, QuantityPicker } from "@/components/shared";
 
-type VariantItem = {
-  id?: string;
-  color: string;
-  colour?: string;
-  sku?: string;
-  inventory?: number;
-  image: string;
-  images?: string[];
-};
+export function ProductDetail({ product }: { product: Product }) {
+  const variants = product.variants || [];
 
-export function ProductDetail({ product }: { product: Product | any }) {
-  const variants: VariantItem[] =
-    product.variants && product.variants.length > 0
-      ? product.variants
-      : getMockVariants(product);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
+    variants[0] || null
+  );
 
-  const [size, setSize] = useState(product.sizes[0]);
-  const [color, setColor] = useState(variants[0]?.color || product.colors[0]);
+  const [size, setSize] = useState(product.sizes?.[0] || "Standard");
+  const [color, setColor] = useState(
+    variants[0]?.color || product.colors?.[0] || ""
+  );
   const [selectedImage, setSelectedImage] = useState(
     variants[0]?.image || product.image
   );
@@ -43,16 +33,15 @@ export function ProductDetail({ product }: { product: Product | any }) {
       size,
       color,
       image: selectedImage,
+      variantId: selectedVariant?.id,
       quantity,
     });
   };
 
-  const handleColorChange = (variant: {
-    color: string;
-    image: string;
-  }) => {
+  const handleColorChange = (variant: ProductVariant) => {
+    setSelectedVariant(variant);
     setColor(variant.color);
-    setSelectedImage(variant.image);
+    setSelectedImage(variant.image || product.image);
   };
 
   return (
@@ -74,34 +63,36 @@ export function ProductDetail({ product }: { product: Product | any }) {
         <div className="grid gap-3 sm:grid-cols-[90px_1fr]">
 
           {/* COLOUR IMAGE THUMBNAILS */}
-          <div className="order-2 flex gap-3 sm:order-1 sm:flex-col">
-            {variants.map((variant) => (
-              <button
-                key={variant.color}
-                type="button"
-                onClick={() => handleColorChange(variant)}
-                aria-label={`View ${variant.color} product image`}
-                aria-pressed={color === variant.color}
-                className={`aspect-square w-16 overflow-hidden rounded-lg border-2 sm:w-auto ${
-                  color === variant.color
-                    ? "border-zinc-950"
-                    : "border-transparent"
-                }`}
-              >
-                <img
-                  src={variant.image}
-                  alt={`${product.name} in ${variant.color}`}
-                  className="h-full w-full object-cover"
-                />
-              </button>
-            ))}
-          </div>
+          {variants.length > 1 && (
+            <div className="order-2 flex gap-3 sm:order-1 sm:flex-col">
+              {variants.map((variant) => (
+                <button
+                  key={variant.id || variant.color}
+                  type="button"
+                  onClick={() => handleColorChange(variant)}
+                  aria-label={`View ${variant.color} product image`}
+                  aria-pressed={color === variant.color}
+                  className={`aspect-square w-16 overflow-hidden rounded-lg border-2 sm:w-auto ${
+                    color === variant.color
+                      ? "border-zinc-950"
+                      : "border-transparent"
+                  }`}
+                >
+                  <img
+                    src={variant.image || product.image}
+                    alt={`${product.name} in ${variant.color}`}
+                    className="h-full w-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* MAIN IMAGE */}
           <div className="aspect-[4/5] overflow-hidden rounded-2xl bg-zinc-100">
             <img
               src={selectedImage}
-              alt={`${product.name} in ${color}`}
+              alt={color ? `${product.name} in ${color}` : product.name}
               className="h-full w-full object-cover transition-all duration-300"
             />
           </div>
@@ -151,68 +142,72 @@ export function ProductDetail({ product }: { product: Product | any }) {
             Inclusive of taxes. Shipping calculated at checkout.
           </p>
 
-          {/* COLOR */}
-          <div className="mt-7">
-            <div className="flex justify-between text-sm">
-              <span className="font-bold">Color</span>
-              <span className="text-zinc-500">{color}</span>
-            </div>
+          {/* COLOR / VARIANTS */}
+          {variants.length > 0 && (
+            <div className="mt-7">
+              <div className="flex justify-between text-sm">
+                <span className="font-bold">Color</span>
+                <span className="text-zinc-500">{color}</span>
+              </div>
 
-            <div className="mt-3 flex flex-wrap gap-3">
-              {variants.map((variant) => (
-                <button
-                  key={variant.color}
-                  type="button"
-                  onClick={() => handleColorChange(variant)}
-                  className={`group overflow-hidden rounded-xl border-2 ${
-                    color === variant.color
-                      ? "border-zinc-950"
-                      : "border-zinc-200"
-                  }`}
-                >
-                  <div className="h-20 w-16 overflow-hidden">
-                    <img
-                      src={variant.image}
-                      alt={variant.color}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-
-                  <div
-                    className={`px-3 py-2 text-xs font-semibold ${
+              <div className="mt-3 flex flex-wrap gap-3">
+                {variants.map((variant) => (
+                  <button
+                    key={variant.id || variant.color}
+                    type="button"
+                    onClick={() => handleColorChange(variant)}
+                    className={`group overflow-hidden rounded-xl border-2 ${
                       color === variant.color
-                        ? "bg-zinc-950 text-white"
-                        : "bg-white text-zinc-700"
+                        ? "border-zinc-950"
+                        : "border-zinc-200"
                     }`}
                   >
-                    {variant.color}
-                  </div>
-                </button>
-              ))}
+                    <div className="h-20 w-16 overflow-hidden">
+                      <img
+                        src={variant.image || product.image}
+                        alt={variant.color}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+
+                    <div
+                      className={`px-3 py-2 text-xs font-semibold ${
+                        color === variant.color
+                          ? "bg-zinc-950 text-white"
+                          : "bg-white text-zinc-700"
+                      }`}
+                    >
+                      {variant.color}
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* SIZE */}
-          <div className="mt-6">
-            <p className="text-sm font-bold">Size</p>
+          {product.sizes && product.sizes.length > 0 && (
+            <div className="mt-6">
+              <p className="text-sm font-bold">Size</p>
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              {(product.sizes as string[]).map((option: string) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setSize(option)}
-                  className={`min-w-11 rounded-md border px-3 py-2 text-sm ${
-                    size === option
-                      ? "border-zinc-950 bg-zinc-950 text-white"
-                      : "border-zinc-200"
-                  }`}
-                >
-                  {option}
-                </button>
-              ))}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {product.sizes.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setSize(option)}
+                    className={`min-w-11 rounded-md border px-3 py-2 text-sm ${
+                      size === option
+                        ? "border-zinc-950 bg-zinc-950 text-white"
+                        : "border-zinc-200"
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* QUANTITY */}
           <div className="mt-6">
@@ -239,7 +234,7 @@ export function ProductDetail({ product }: { product: Product | any }) {
                 await add();
                 window.location.assign("/checkout");
               }}
-              className="rounded-xl border border-zinc-950 px-6 py-4 text-xs font-bold tracking-[0.13em] hover:bg-zinc-100"
+              className="rounded-xl border border-zinc-950 px-6 py-4 text-xs font-bold tracking-[0.12em] hover:bg-zinc-100"
             >
               BUY NOW
             </button>

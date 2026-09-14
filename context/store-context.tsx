@@ -7,7 +7,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import type { Product } from "@/lib/mockData";
+import type { Product } from "@/lib/products";
 
 export type CartItem = Product & {
   cartItemId?: string;
@@ -59,7 +59,7 @@ type StoreContextValue = {
     size?: string,
     color?: string
   ) => Promise<void>;
-  toggleWishlist: (id: string) => void;
+  toggleWishlist: (id: string) => Promise<void>;
   login: (email: string, name?: string) => void;
   logout: () => void;
   clearCart: () => void;
