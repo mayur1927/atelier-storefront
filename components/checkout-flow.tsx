@@ -141,6 +141,10 @@ export function CheckoutPage() {
 
     if (discountAmount > 0) {
       sessionStorage.setItem("atelier_coupon", couponCode.trim().toUpperCase());
+      sessionStorage.setItem("atelier_discount", discountAmount.toString());
+    } else {
+      sessionStorage.removeItem("atelier_coupon");
+      sessionStorage.removeItem("atelier_discount");
     }
     router.push("/payment");
   };
@@ -376,8 +380,19 @@ export function PaymentPage() {
   const [method, setMethod] = useState("card");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [discountAmount, setDiscountAmount] = useState(0);
   const { cart, clearCart } = useStore();
   const router = useRouter();
+
+  useEffect(() => {
+    const savedDiscount = sessionStorage.getItem("atelier_discount");
+    if (savedDiscount) {
+      const parsed = parseFloat(savedDiscount);
+      if (!isNaN(parsed) && parsed > 0) {
+        setDiscountAmount(parsed);
+      }
+    }
+  }, []);
 
   const options = [
     {
@@ -444,6 +459,7 @@ export function PaymentPage() {
 
       sessionStorage.removeItem("atelier_shipping");
       sessionStorage.removeItem("atelier_coupon");
+      sessionStorage.removeItem("atelier_discount");
       clearCart();
       router.push("/order-success");
     } catch {
@@ -504,7 +520,7 @@ export function PaymentPage() {
         disabled={submitting || !cart.length}
         className="mt-6 w-full rounded-xl bg-zinc-950 py-4 text-xs font-bold tracking-[0.12em] text-white hover:bg-zinc-700 disabled:opacity-50"
       >
-        {submitting ? "PROCESSING..." : `PAY $${priceDetails(cart).total.toFixed(2)}`}
+        {submitting ? "PROCESSING..." : `PAY $${priceDetails(cart, discountAmount).total.toFixed(2)}`}
       </button>
     </div>
   );

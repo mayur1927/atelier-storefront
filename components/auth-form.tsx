@@ -2,10 +2,19 @@
 
 import Link from "next/link";
 import { Facebook, LockKeyhole, Mail, UserRound } from "lucide-react";
-import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useStore } from "@/context/store-context";
 
-export function AuthForm({ mode }: { mode: "login" | "register" }) {
+export function AuthForm(props: { mode: "login" | "register" }) {
+  return (
+    <Suspense fallback={<div className="min-h-[50vh]" />}>
+      <AuthFormContent {...props} />
+    </Suspense>
+  );
+}
+
+function AuthFormContent({ mode }: { mode: "login" | "register" }) {
   const register = mode === "register";
 
   const [name, setName] = useState("");
@@ -16,6 +25,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTarget = searchParams.get("redirect") || "/profile";
+  const { login } = useStore();
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -47,7 +59,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         return;
       }
 
-      router.push("/profile");
+      if (data.user) {
+        await login(data.user.email, data.user.name);
+      }
+
+      router.push(redirectTarget);
       router.refresh();
     } catch {
       setError("Unable to connect to the server. Please try again.");

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { createSession } from "@/lib/auth";
 import { logPrismaError } from "@/lib/logger";
 
 export async function POST(request: Request) {
@@ -60,6 +61,8 @@ export async function POST(request: Request) {
         createdAt: true,
       },
     });
+
+    await createSession(user.id);
 
     return NextResponse.json(
       {
