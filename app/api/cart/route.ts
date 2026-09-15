@@ -97,6 +97,7 @@ export async function POST(request: Request) {
     }
 
     let resolvedVariantId: string | null = null;
+    let availableInventory = 999;
 
     if (variantId) {
       const variant = await prisma.productVariant.findFirst({
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
 
       if (variant) {
         resolvedVariantId = variant.id;
+        availableInventory = variant.inventory;
       }
     }
 
@@ -126,13 +128,22 @@ export async function POST(request: Request) {
       },
     });
 
-    if (existingItem) {
-      const newQuantity = existingItem.quantity + quantity;
+    const totalQuantity = (existingItem?.quantity || 0) + quantity;
 
+    if (totalQuantity > availableInventory) {
+      return NextResponse.json(
+        {
+          error: `Only ${availableInventory} items available in stock.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    if (existingItem) {
       await prisma.cartItem.update({
         where: { id: existingItem.id },
         data: {
-          quantity: newQuantity,
+          quantity: totalQuantity,
         },
       });
     } else {
@@ -230,6 +241,19 @@ export async function PATCH(request: Request) {
         where: { id: itemId },
       });
     } else {
+      if (item.variantId) {
+        const variant = await prisma.productVariant.findUnique({
+          where: { id: item.variantId },
+        });
+
+        if (variant && quantity > variant.inventory) {
+          return NextResponse.json(
+            { error: `Only ${variant.inventory} items available in stock.` },
+            { status: 400 }
+          );
+        }
+      }
+
       await prisma.cartItem.update({
         where: { id: itemId },
         data: { quantity },

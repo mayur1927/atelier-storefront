@@ -88,6 +88,8 @@ function convertDatabaseCart(items: DatabaseCartItem[]): CartItem[] {
   });
 }
 
+const GUEST_CART_KEY = "atelier_guest_cart";
+
 export function StoreProvider({
   children,
 }: {
@@ -96,53 +98,93 @@ export function StoreProvider({
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlistIds, setWishlistIds] = useState<string[]>([]);
   const [user, setUser] = useState<User | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Load the real logged-in user.
+  // Initialize: load user session and restore guest cart if guest
   useEffect(() => {
-    const loadUser = async () => {
+    const init = async () => {
+      let loggedInUser: User | null = null;
       try {
         const response = await fetch("/api/auth/me");
-
-        if (!response.ok) return;
-
-        const data = await response.json();
-
-        if (data.user) {
-          setUser({
-            name: data.user.name,
-            email: data.user.email,
-          });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.user) {
+            loggedInUser = {
+              name: data.user.name,
+              email: data.user.email,
+            };
+            setUser(loggedInUser);
+          }
         }
       } catch {
-        // User is simply not logged in.
+        // Unauthenticated
       }
+
+      const savedGuestCart = localStorage.getItem(GUEST_CART_KEY);
+      let guestItems: CartItem[] = [];
+      if (savedGuestCart) {
+        try {
+          guestItems = JSON.parse(savedGuestCart);
+        } catch {
+          guestItems = [];
+        }
+      }
+
+      if (loggedInUser) {
+        // If logged in and guest items exist, merge them
+        if (guestItems.length > 0) {
+          try {
+            const mergeRes = await fetch("/api/cart/merge", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ items: guestItems }),
+            });
+            if (mergeRes.ok) {
+              const data = await mergeRes.json();
+              setCart(convertDatabaseCart(data.items || []));
+              localStorage.removeItem(GUEST_CART_KEY);
+            }
+          } catch (e) {
+            console.error("Failed to merge guest cart on init:", e);
+          }
+        } else {
+          // Fetch existing database cart
+          try {
+            const cartRes = await fetch("/api/cart");
+            if (cartRes.ok) {
+              const data = await cartRes.json();
+              setCart(convertDatabaseCart(data.items || []));
+            }
+          } catch (e) {
+            console.error("Failed to load cart on init:", e);
+          }
+        }
+      } else {
+        // Guest mode: restore from localStorage
+        if (guestItems.length > 0) {
+          setCart(guestItems);
+        }
+      }
+
+      setIsInitialized(true);
     };
 
-    loadUser();
+    init();
   }, []);
 
-  // Load database cart whenever a user is available.
+  // Save guest cart to localStorage whenever it changes in unauthenticated mode
   useEffect(() => {
-    if (!user) return;
-
-    const loadCart = async () => {
-      try {
-        const response = await fetch("/api/cart");
-
-        if (!response.ok) return;
-
-        const data = await response.json();
-
-        setCart(convertDatabaseCart(data.items || []));
-      } catch (error) {
-        console.error("Failed to load cart:", error);
+    if (!isInitialized) return;
+    if (!user) {
+      if (cart.length > 0) {
+        localStorage.setItem(GUEST_CART_KEY, JSON.stringify(cart));
+      } else {
+        localStorage.removeItem(GUEST_CART_KEY);
       }
-    };
+    }
+  }, [cart, user, isInitialized]);
 
-    loadCart();
-  }, [user]);
-
-  // Load database wishlist whenever a user is available.
+  // Load database wishlist whenever user is available
   useEffect(() => {
     if (!user) {
       setWishlistIds([]);
@@ -171,7 +213,6 @@ export function StoreProvider({
       wishlistIds,
       user,
 
-      // Add item to database cart.
       addToCart: async (
         product: Product,
         selection: {
@@ -183,37 +224,38 @@ export function StoreProvider({
         } = {}
       ) => {
         const size = selection.size ?? product.sizes[0];
-        const color = selection.color ?? product.colors[0];
+        const color = selection.color ?? product.colors?.[0] ?? "";
         const image = selection.image ?? product.image;
         const addQuantity = Math.max(1, selection.quantity ?? 1);
 
-        try {
-          const response = await fetch("/api/cart", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              productId: product.id,
-              variantId: selection.variantId,
-              size,
-              quantity: addQuantity,
-            }),
-          });
+        if (user) {
+          try {
+            const response = await fetch("/api/cart", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                productId: product.id,
+                variantId: selection.variantId,
+                size,
+                quantity: addQuantity,
+              }),
+            });
 
-          if (!response.ok) {
+            if (!response.ok) {
+              const data = await response.json();
+              console.error(data.error || "Failed to add item.");
+              return;
+            }
+
             const data = await response.json();
-            console.error(data.error || "Failed to add item.");
-            return;
+            setCart(convertDatabaseCart(data.items || []));
+          } catch (error) {
+            console.error("Failed to add item to cart:", error);
           }
-
-          const data = await response.json();
-
-          setCart(convertDatabaseCart(data.items || []));
-        } catch (error) {
-          console.error("Failed to add item to cart:", error);
-
-          // Fallback to local state if the API cannot be reached.
+        } else {
+          // Guest Cart: update local state & localStorage with inventory check
           setCart((items) => {
             const existing = items.find(
               (item) =>
@@ -222,33 +264,38 @@ export function StoreProvider({
                 item.color === color
             );
 
-            return existing
-              ? items.map((item) =>
-                  item.id === product.id &&
-                  item.size === size &&
-                  item.color === color
-                    ? {
-                        ...item,
-                        quantity: item.quantity + addQuantity,
-                      }
-                    : item
-                )
-              : [
-                  ...items,
-                  {
-                    ...product,
-                    image,
-                    quantity: addQuantity,
-                    size,
-                    color,
-                    variantId: selection.variantId,
-                  },
-                ];
+            const selectedVariant = product.variants?.find(
+              (v) => v.id === selection.variantId || v.colour === color
+            );
+            const availableStock = selectedVariant ? selectedVariant.inventory : 999;
+
+            if (existing) {
+              const newQty = Math.min(availableStock, existing.quantity + addQuantity);
+              return items.map((item) =>
+                item.id === product.id &&
+                item.size === size &&
+                item.color === color
+                  ? { ...item, quantity: newQty }
+                  : item
+              );
+            }
+
+            const initialQty = Math.min(availableStock, addQuantity);
+            return [
+              ...items,
+              {
+                ...product,
+                image,
+                quantity: initialQty,
+                size,
+                color,
+                variantId: selection.variantId,
+              },
+            ];
           });
         }
       },
 
-      // Update quantity in database.
       updateQuantity: async (
         id: string,
         quantity: number,
@@ -262,41 +309,67 @@ export function StoreProvider({
             (!color || cartItem.color === color)
         );
 
-        if (!item?.cartItemId) return;
+        if (!item) return;
 
-        try {
-          const response = await fetch("/api/cart", {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              itemId: item.cartItemId,
-              quantity,
-            }),
-          });
+        if (user) {
+          if (!item.cartItemId) return;
 
-          if (!response.ok) {
-            const data = await response.json();
-            console.error(data.error || "Failed to update cart.");
-            return;
+          try {
+            const response = await fetch("/api/cart", {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                itemId: item.cartItemId,
+                quantity,
+              }),
+            });
+
+            if (!response.ok) {
+              const data = await response.json();
+              console.error(data.error || "Failed to update cart.");
+              return;
+            }
+
+            const cartResponse = await fetch("/api/cart");
+            if (cartResponse.ok) {
+              const data = await cartResponse.json();
+              setCart(convertDatabaseCart(data.items || []));
+            }
+          } catch (error) {
+            console.error("Failed to update cart:", error);
           }
-
-          const cartResponse = await fetch("/api/cart");
-
-          if (cartResponse.ok) {
-            const data = await cartResponse.json();
-
-            setCart(
-              convertDatabaseCart(data.items || [])
+        } else {
+          // Guest mode
+          if (quantity <= 0) {
+            setCart((items) =>
+              items.filter(
+                (cartItem) =>
+                  !(
+                    cartItem.id === id &&
+                    (!size || cartItem.size === size) &&
+                    (!color || cartItem.color === color)
+                  )
+              )
+            );
+          } else {
+            setCart((items) =>
+              items.map((cartItem) => {
+                if (
+                  cartItem.id === id &&
+                  (!size || cartItem.size === size) &&
+                  (!color || cartItem.color === color)
+                ) {
+                  return { ...cartItem, quantity };
+                }
+                return cartItem;
+              })
             );
           }
-        } catch (error) {
-          console.error("Failed to update cart:", error);
         }
       },
 
-      // Remove item from database.
       removeFromCart: async (
         id: string,
         size?: string,
@@ -309,42 +382,52 @@ export function StoreProvider({
             (!color || cartItem.color === color)
         );
 
-        if (!item?.cartItemId) return;
+        if (!item) return;
 
-        try {
-          const response = await fetch("/api/cart", {
-            method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              itemId: item.cartItemId,
-            }),
-          });
+        if (user) {
+          if (!item.cartItemId) return;
 
-          if (!response.ok) {
-            const data = await response.json();
-            console.error(data.error || "Failed to remove item.");
-            return;
+          try {
+            const response = await fetch("/api/cart", {
+              method: "DELETE",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                itemId: item.cartItemId,
+              }),
+            });
+
+            if (!response.ok) {
+              const data = await response.json();
+              console.error(data.error || "Failed to remove item.");
+              return;
+            }
+
+            setCart((items) =>
+              items.filter((cartItem) => cartItem.cartItemId !== item.cartItemId)
+            );
+          } catch (error) {
+            console.error("Failed to remove item:", error);
           }
-
+        } else {
+          // Guest mode
           setCart((items) =>
             items.filter(
               (cartItem) =>
-                cartItem.cartItemId !== item.cartItemId
+                !(
+                  cartItem.id === id &&
+                  (!size || cartItem.size === size) &&
+                  (!color || cartItem.color === color)
+                )
             )
           );
-        } catch (error) {
-          console.error("Failed to remove item:", error);
         }
       },
 
       toggleWishlist: async (id: string) => {
-        // Optimistic update
         setWishlistIds((ids) =>
-          ids.includes(id)
-            ? ids.filter((item) => item !== id)
-            : [...ids, id]
+          ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]
         );
 
         try {
@@ -365,8 +448,8 @@ export function StoreProvider({
         }
       },
 
-      login: (email: string, name?: string) =>
-        setUser({
+      login: async (email: string, name?: string) => {
+        const loggedUser: User = {
           email,
           name:
             name ||
@@ -374,18 +457,62 @@ export function StoreProvider({
               .split("@")[0]
               .replace(
                 /(^|[._-])(\w)/g,
-                (_, prefix, letter) =>
-                  `${prefix}${letter.toUpperCase()}`
+                (_, prefix, letter) => `${prefix}${letter.toUpperCase()}`
               ),
-        }),
+        };
+        setUser(loggedUser);
 
-      logout: () => {
+        // Perform guest-to-authenticated cart merge if guest items exist
+        const savedGuestCart = localStorage.getItem(GUEST_CART_KEY);
+        if (savedGuestCart) {
+          try {
+            const guestItems = JSON.parse(savedGuestCart);
+            if (Array.isArray(guestItems) && guestItems.length > 0) {
+              const mergeRes = await fetch("/api/cart/merge", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ items: guestItems }),
+              });
+              if (mergeRes.ok) {
+                const data = await mergeRes.json();
+                setCart(convertDatabaseCart(data.items || []));
+                localStorage.removeItem(GUEST_CART_KEY);
+                return;
+              }
+            }
+          } catch (e) {
+            console.error("Failed to merge guest cart on login:", e);
+          }
+        }
+
+        // Otherwise load user cart from database
+        try {
+          const cartRes = await fetch("/api/cart");
+          if (cartRes.ok) {
+            const data = await cartRes.json();
+            setCart(convertDatabaseCart(data.items || []));
+          }
+        } catch (e) {
+          console.error("Failed to load user cart on login:", e);
+        }
+      },
+
+      logout: async () => {
+        try {
+          await fetch("/api/auth/logout", { method: "POST" });
+        } catch {
+          // Ignore
+        }
+        localStorage.removeItem(GUEST_CART_KEY);
         setUser(null);
         setCart([]);
         setWishlistIds([]);
       },
 
-      clearCart: () => setCart([]),
+      clearCart: () => {
+        localStorage.removeItem(GUEST_CART_KEY);
+        setCart([]);
+      },
     }),
     [cart, wishlistIds, user]
   );

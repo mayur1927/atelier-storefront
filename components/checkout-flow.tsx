@@ -1,15 +1,32 @@
 "use client";
 
 import { CreditCard, Landmark, Smartphone, WalletCards, Tag } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/context/store-context";
 import { OrderDetails } from "@/components/cart-page";
 import { priceDetails } from "@/components/shared";
 
+type SavedAddress = {
+  id: string;
+  fullName: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state?: string;
+  postalCode: string;
+  country: string;
+  phone?: string;
+};
+
 export function CheckoutPage() {
   const router = useRouter();
   const { cart, user } = useStore();
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>("new");
+  const [loadingAddresses, setLoadingAddresses] = useState(true);
+  const [saveAddressToProfile, setSaveAddressToProfile] = useState(true);
+
   const [form, setForm] = useState({
     name: user?.name ?? "",
     phone: "",
@@ -17,6 +34,7 @@ export function CheckoutPage() {
     city: "",
     state: "",
     zip: "",
+    country: "India",
   });
 
   const [couponCode, setCouponCode] = useState("");
@@ -24,6 +42,27 @@ export function CheckoutPage() {
   const [couponMessage, setCouponMessage] = useState("");
   const [couponError, setCouponError] = useState("");
   const [validatingCoupon, setValidatingCoupon] = useState(false);
+
+  useEffect(() => {
+    const loadAddresses = async () => {
+      try {
+        const res = await fetch("/api/addresses");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.addresses) && data.addresses.length > 0) {
+            setSavedAddresses(data.addresses);
+            setSelectedAddressId(data.addresses[0].id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load saved addresses:", err);
+      } finally {
+        setLoadingAddresses(false);
+      }
+    };
+
+    loadAddresses();
+  }, []);
 
   const update = (key: keyof typeof form, value: string) =>
     setForm({ ...form, [key]: value });
@@ -61,7 +100,45 @@ export function CheckoutPage() {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    sessionStorage.setItem("atelier_shipping", JSON.stringify(form));
+
+    if (selectedAddressId !== "new") {
+      const chosen = savedAddresses.find((a) => a.id === selectedAddressId);
+      if (chosen) {
+        sessionStorage.setItem(
+          "atelier_shipping",
+          JSON.stringify({
+            addressId: chosen.id,
+            shipping: {
+              fullName: chosen.fullName,
+              line1: chosen.line1,
+              line2: chosen.line2,
+              city: chosen.city,
+              state: chosen.state,
+              postalCode: chosen.postalCode,
+              country: chosen.country || "India",
+              phone: chosen.phone,
+            },
+          })
+        );
+      }
+    } else {
+      sessionStorage.setItem(
+        "atelier_shipping",
+        JSON.stringify({
+          saveAddress: saveAddressToProfile,
+          shipping: {
+            fullName: form.name,
+            line1: form.address,
+            city: form.city,
+            state: form.state,
+            postalCode: form.zip,
+            country: form.country || "India",
+            phone: form.phone,
+          },
+        })
+      );
+    }
+
     if (discountAmount > 0) {
       sessionStorage.setItem("atelier_coupon", couponCode.trim().toUpperCase());
     }
@@ -98,42 +175,97 @@ export function CheckoutPage() {
             Where should we send your order?
           </p>
 
-          <div className="mt-7 grid gap-4">
-            <Input
-              label="Full name"
-              value={form.name}
-              onChange={(value) => update("name", value)}
-            />
-            <Input
-              label="Phone number"
-              type="tel"
-              value={form.phone}
-              onChange={(value) => update("phone", value)}
-            />
-            <Input
-              label="Address"
-              value={form.address}
-              onChange={(value) => update("address", value)}
-              placeholder="House number, street name"
-            />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Input
-                label="City"
-                value={form.city}
-                onChange={(value) => update("city", value)}
-              />
-              <Input
-                label="State"
-                value={form.state}
-                onChange={(value) => update("state", value)}
-              />
+          {/* SAVED ADDRESS SELECTOR */}
+          {savedAddresses.length > 0 && (
+            <div className="mt-6 space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                Select a delivery address
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {savedAddresses.map((addr) => (
+                  <div
+                    key={addr.id}
+                    onClick={() => setSelectedAddressId(addr.id)}
+                    className={`cursor-pointer rounded-xl border p-4 text-xs transition ${
+                      selectedAddressId === addr.id
+                        ? "border-zinc-950 bg-zinc-50 ring-2 ring-zinc-950"
+                        : "border-zinc-200 hover:border-zinc-300"
+                    }`}
+                  >
+                    <p className="font-bold text-sm text-zinc-900">{addr.fullName}</p>
+                    <p className="mt-1 text-zinc-600">{addr.line1}</p>
+                    {addr.line2 && <p className="text-zinc-600">{addr.line2}</p>}
+                    <p className="text-zinc-600">
+                      {addr.city}, {addr.state} {addr.postalCode}
+                    </p>
+                    {addr.phone && <p className="mt-1 text-zinc-500">Phone: {addr.phone}</p>}
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedAddressId("new")}
+                  className={`text-xs font-bold underline ${
+                    selectedAddressId === "new" ? "text-zinc-950" : "text-zinc-500"
+                  }`}
+                >
+                  + Deliver to a different address
+                </button>
+              </div>
             </div>
-            <Input
-              label="ZIP / Postal code"
-              value={form.zip}
-              onChange={(value) => update("zip", value)}
-            />
-          </div>
+          )}
+
+          {/* NEW ADDRESS FORM FIELDS */}
+          {(selectedAddressId === "new" || savedAddresses.length === 0) && (
+            <div className="mt-6 grid gap-4 border-t border-zinc-100 pt-6">
+              <Input
+                label="Full name"
+                value={form.name}
+                onChange={(value) => update("name", value)}
+              />
+              <Input
+                label="Phone number"
+                type="tel"
+                value={form.phone}
+                onChange={(value) => update("phone", value)}
+              />
+              <Input
+                label="Address"
+                value={form.address}
+                onChange={(value) => update("address", value)}
+                placeholder="House number, street name"
+              />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Input
+                  label="City"
+                  value={form.city}
+                  onChange={(value) => update("city", value)}
+                />
+                <Input
+                  label="State"
+                  value={form.state}
+                  onChange={(value) => update("state", value)}
+                />
+              </div>
+              <Input
+                label="ZIP / Postal code"
+                value={form.zip}
+                onChange={(value) => update("zip", value)}
+              />
+
+              <label className="mt-2 flex items-center gap-2 text-xs font-semibold text-zinc-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={saveAddressToProfile}
+                  onChange={(e) => setSaveAddressToProfile(e.target.checked)}
+                  className="accent-zinc-950"
+                />
+                Save this address to my account for future orders
+              </label>
+            </div>
+          )}
 
           <button className="mt-7 w-full rounded-xl bg-zinc-950 py-4 text-xs font-bold tracking-[0.12em] text-white hover:bg-zinc-700">
             CONTINUE TO PAYMENT
@@ -280,12 +412,25 @@ export function PaymentPage() {
 
     try {
       const couponCode = sessionStorage.getItem("atelier_coupon") || undefined;
+      const rawShipping = sessionStorage.getItem("atelier_shipping");
+      let shippingPayload: Record<string, unknown> = {};
+
+      if (rawShipping) {
+        try {
+          shippingPayload = JSON.parse(rawShipping);
+        } catch {
+          shippingPayload = {};
+        }
+      }
 
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           couponCode,
+          addressId: shippingPayload.addressId,
+          shipping: shippingPayload.shipping,
+          saveAddress: Boolean(shippingPayload.saveAddress),
         }),
       });
 

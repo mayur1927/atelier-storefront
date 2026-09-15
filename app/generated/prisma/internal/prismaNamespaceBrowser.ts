@@ -212,6 +212,13 @@ export const OrderScalarFieldEnum = {
   couponCode: 'couponCode',
   total: 'total',
   status: 'status',
+  shippingFullName: 'shippingFullName',
+  shippingAddress: 'shippingAddress',
+  shippingCity: 'shippingCity',
+  shippingState: 'shippingState',
+  shippingPostalCode: 'shippingPostalCode',
+  shippingCountry: 'shippingCountry',
+  shippingPhone: 'shippingPhone',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

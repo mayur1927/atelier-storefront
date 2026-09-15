@@ -34,6 +34,13 @@ type Order = {
   discount: number;
   total: number;
   status: string;
+  shippingFullName?: string;
+  shippingAddress?: string;
+  shippingCity?: string;
+  shippingState?: string;
+  shippingPostalCode?: string;
+  shippingCountry?: string;
+  shippingPhone?: string;
   createdAt: string;
   items: Array<{
     id: string;
@@ -317,6 +324,15 @@ function ProfileContent({
                 </div>
               ))}
             </div>
+
+            {order.shippingAddress && (
+              <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center justify-between text-xs text-zinc-500">
+                <span>
+                  Delivering to: <strong className="text-zinc-800">{order.shippingFullName}</strong> ({order.shippingAddress}, {order.shippingCity})
+                </span>
+                {order.shippingPhone && <span>Phone: {order.shippingPhone}</span>}
+              </div>
+            )}
           </div>
         ))}
       </div>
