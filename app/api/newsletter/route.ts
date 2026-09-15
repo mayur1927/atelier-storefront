@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isValidEmail } from "@/lib/validations";
+import { logPrismaError } from "@/lib/logger";
 
 export async function POST(request: Request) {
   try {
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error("Newsletter subscription error:", error);
+    logPrismaError("newsletter:POST", error);
 
     return NextResponse.json(
       { error: "Failed to subscribe. Please try again later." },

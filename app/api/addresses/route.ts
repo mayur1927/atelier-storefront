@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { validateAddress } from "@/lib/validations";
+import { logPrismaError } from "@/lib/logger";
 
 export async function GET() {
   try {
@@ -21,7 +22,7 @@ export async function GET() {
 
     return NextResponse.json({ addresses });
   } catch (error) {
-    console.error("Failed to fetch addresses:", error);
+    logPrismaError("GET /api/addresses", error);
 
     return NextResponse.json(
       { error: "Failed to fetch addresses." },
@@ -78,6 +79,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ address }, { status: 201 });
   } catch (error) {
+    logPrismaError("POST /api/addresses", error);
     const message = error instanceof Error ? error.message : "Failed to create address.";
     return NextResponse.json({ error: message }, { status: 400 });
   }
@@ -121,7 +123,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ message: "Address deleted successfully." });
   } catch (error) {
-    console.error("Failed to delete address:", error);
+    logPrismaError("DELETE /api/addresses", error);
     return NextResponse.json(
       { error: "Failed to delete address." },
       { status: 500 }

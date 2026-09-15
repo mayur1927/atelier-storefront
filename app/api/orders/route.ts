@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { calculatePricing } from "@/lib/pricing";
+import { logPrismaError } from "@/lib/logger";
 
 export async function GET() {
   try {
@@ -28,7 +29,7 @@ export async function GET() {
 
     return NextResponse.json({ orders });
   } catch (error) {
-    console.error("Failed to fetch orders:", error);
+    logPrismaError("GET /api/orders", error);
     return NextResponse.json(
       { error: "Failed to fetch orders." },
       { status: 500 }
@@ -149,7 +150,7 @@ export async function POST(request: Request) {
       order: newOrder,
     }, { status: 201 });
   } catch (error) {
-    console.error("Failed to process order:", error);
+    logPrismaError("POST /api/orders", error);
     return NextResponse.json(
       { error: "Failed to process order." },
       { status: 500 }

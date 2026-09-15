@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { logPrismaError } from "@/lib/logger";
 
 export async function GET(
   request: Request,
@@ -41,7 +42,7 @@ export async function GET(
 
     return NextResponse.json({ order });
   } catch (error) {
-    console.error("Failed to fetch order:", error);
+    logPrismaError("orders/[id]:GET", error);
     return NextResponse.json(
       { error: "Failed to fetch order." },
       { status: 500 }

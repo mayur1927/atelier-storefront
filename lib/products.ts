@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { logPrismaError } from "@/lib/logger";
 
 export type ProductVariant = {
   id: string;
@@ -81,7 +82,7 @@ export async function getDbCategories(): Promise<CategoryInfo[]> {
           "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80",
       }));
   } catch (error) {
-    console.error("Failed to load categories from database:", error);
+    logPrismaError("getDbCategories", error);
     return Object.entries(CATEGORY_METADATA).map(([name, meta]) => ({
       name,
       ...meta,
@@ -100,7 +101,7 @@ export async function getDbBrands(): Promise<string[]> {
 
     return results.map((r) => r.brand).filter(Boolean);
   } catch (error) {
-    console.error("Failed to load brands from database:", error);
+    logPrismaError("getDbBrands", error);
     return [];
   }
 }
@@ -196,7 +197,7 @@ export async function getDbProducts(filters?: {
       })),
     }));
   } catch (error) {
-    console.error("Failed to load products from database:", error);
+    logPrismaError("getDbProducts", error);
     return [];
   }
 }
@@ -253,7 +254,7 @@ export async function getDbProductByIdOrSlug(
       })),
     };
   } catch (error) {
-    console.error(`Failed to load product ${idOrSlug} from database:`, error);
+    logPrismaError(`getDbProductByIdOrSlug(${idOrSlug})`, error);
     return null;
   }
 }

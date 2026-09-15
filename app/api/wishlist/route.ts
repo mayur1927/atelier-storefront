@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { logPrismaError } from "@/lib/logger";
 
 export async function GET() {
   try {
@@ -50,7 +51,7 @@ export async function GET() {
       ids: wishlist.map((w) => w.id),
     });
   } catch (error) {
-    console.error("Failed to fetch wishlist:", error);
+    logPrismaError("GET /api/wishlist", error);
 
     return NextResponse.json(
       { error: "Failed to fetch wishlist." },
@@ -128,7 +129,7 @@ export async function POST(request: Request) {
       ids: allItems.map((item) => item.productId),
     });
   } catch (error) {
-    console.error("Failed to update wishlist:", error);
+    logPrismaError("POST /api/wishlist", error);
 
     return NextResponse.json(
       { error: "Failed to update wishlist." },

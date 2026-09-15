@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logPrismaError } from "@/lib/logger";
 
 export async function GET(request: Request) {
   try {
@@ -95,7 +96,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(formattedProducts);
   } catch (error) {
-    console.error("Failed to fetch products:", error);
+    logPrismaError("GET /api/products", error);
 
     return NextResponse.json(
       { error: "Failed to fetch products" },

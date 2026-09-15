@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logPrismaError } from "@/lib/logger";
 
 type RouteContext = {
   params: Promise<{
@@ -59,7 +60,7 @@ export async function GET(
 
     return NextResponse.json(formattedProduct);
   } catch (error) {
-    console.error("Failed to fetch product:", error);
+    logPrismaError("GET /api/products/[id]", error);
 
     return NextResponse.json(
       { error: "Failed to fetch product" },

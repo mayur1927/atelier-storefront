@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { logPrismaError } from "@/lib/logger";
 
 export async function GET() {
   try {
@@ -31,7 +32,7 @@ export async function GET() {
 
     return NextResponse.json(cart ?? { items: [] });
   } catch (error) {
-    console.error("Failed to fetch cart:", error);
+    logPrismaError("GET /api/cart", error);
 
     return NextResponse.json(
       { error: "Failed to fetch cart." },
@@ -164,7 +165,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(updatedCart);
   } catch (error) {
-    console.error("Failed to add cart item:", error);
+    logPrismaError("POST /api/cart", error);
 
     return NextResponse.json(
       { error: "Failed to add item to cart." },
@@ -239,7 +240,7 @@ export async function PATCH(request: Request) {
       message: "Cart updated successfully.",
     });
   } catch (error) {
-    console.error("Failed to update cart:", error);
+    logPrismaError("PATCH /api/cart", error);
 
     return NextResponse.json(
       { error: "Failed to update cart." },
@@ -304,7 +305,7 @@ export async function DELETE(request: Request) {
       message: "Item removed from cart.",
     });
   } catch (error) {
-    console.error("Failed to remove cart item:", error);
+    logPrismaError("DELETE /api/cart", error);
 
     return NextResponse.json(
       { error: "Failed to remove cart item." },

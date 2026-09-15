@@ -13,6 +13,7 @@ export function getPrismaClient(): PrismaClient {
 
   const connectionString =
     process.env.DATABASE_URL ||
+    process.env.DIRECT_URL ||
     "postgresql://postgres:postgres@localhost:5432/postgres";
 
   const adapter = new PrismaPg({
