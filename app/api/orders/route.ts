@@ -126,7 +126,11 @@ export async function POST(request: Request) {
       include: {
         items: {
           include: {
-            product: true,
+            product: {
+              include: {
+                variants: true,
+              },
+            },
             variant: {
               include: {
                 images: true,
@@ -167,14 +171,26 @@ export async function POST(request: Request) {
     const newOrder = await prisma.$transaction(async (tx) => {
       // 1. Authoritative inventory check
       for (const item of cart.items) {
+        if (!item.variantId && item.product.variants && item.product.variants.length > 0) {
+          throw new Error(
+            `Variant selection missing for ${item.product.name}. Please re-add the item to your cart.`
+          );
+        }
+
         if (item.variantId) {
           const liveVariant = await tx.productVariant.findUnique({
             where: { id: item.variantId },
           });
 
-          if (!liveVariant || liveVariant.inventory < item.quantity) {
+          if (!liveVariant || liveVariant.productId !== item.productId) {
             throw new Error(
-              `Insufficient stock for ${item.product.name} (${liveVariant?.colour || "selected variant"}). Available: ${liveVariant?.inventory ?? 0}`
+              `Invalid variant for ${item.product.name}. Please re-add the item to your cart.`
+            );
+          }
+
+          if (liveVariant.inventory < item.quantity) {
+            throw new Error(
+              `Insufficient stock for ${item.product.name} (${liveVariant.colour || "selected variant"}). Available: ${liveVariant.inventory}`
             );
           }
         }

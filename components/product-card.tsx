@@ -9,6 +9,17 @@ export function ProductCard({ product }: { product: Product | any }) {
   const { addToCart, toggleWishlist, wishlistIds } = useStore();
   const inWishlist = wishlistIds.includes(product.id);
 
+  const handleQuickAdd = () => {
+    const defaultVariant = product.variants?.[0];
+    addToCart(product, {
+      variantId: defaultVariant?.id,
+      color: defaultVariant?.color || defaultVariant?.colour || product.colors?.[0] || "",
+      image: defaultVariant?.image || product.image,
+      size: product.sizes?.[0] || "Standard",
+      quantity: 1,
+    });
+  };
+
   return (
     <article className="group relative">
       <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-zinc-100">
@@ -29,7 +40,7 @@ export function ProductCard({ product }: { product: Product | any }) {
         </button>
 
         <button
-          onClick={() => addToCart(product)}
+          onClick={handleQuickAdd}
           className="absolute inset-x-3 bottom-3 flex translate-y-16 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-3 py-3 text-xs font-bold tracking-[0.12em] text-white transition duration-300 hover:bg-zinc-700 group-hover:translate-y-0"
           aria-label={`Add ${product.name} to cart`}
         >

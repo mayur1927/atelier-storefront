@@ -223,9 +223,16 @@ export function StoreProvider({
           quantity?: number;
         } = {}
       ) => {
-        const size = selection.size ?? product.sizes[0];
-        const color = selection.color ?? product.colors?.[0] ?? "";
-        const image = selection.image ?? product.image;
+        const defaultVariant = product.variants?.[0];
+        const resolvedVariantId = selection.variantId ?? defaultVariant?.id;
+        const size = selection.size ?? product.sizes?.[0] ?? "Standard";
+        const color =
+          selection.color ??
+          defaultVariant?.color ??
+          defaultVariant?.colour ??
+          product.colors?.[0] ??
+          "";
+        const image = selection.image ?? defaultVariant?.image ?? product.image;
         const addQuantity = Math.max(1, selection.quantity ?? 1);
 
         if (user) {
@@ -237,7 +244,7 @@ export function StoreProvider({
               },
               body: JSON.stringify({
                 productId: product.id,
-                variantId: selection.variantId,
+                variantId: resolvedVariantId,
                 size,
                 quantity: addQuantity,
               }),
@@ -265,7 +272,7 @@ export function StoreProvider({
             );
 
             const selectedVariant = product.variants?.find(
-              (v) => v.id === selection.variantId || v.colour === color
+              (v) => v.id === resolvedVariantId || v.colour === color
             );
             const availableStock = selectedVariant ? selectedVariant.inventory : 999;
 
@@ -275,7 +282,7 @@ export function StoreProvider({
                 item.id === product.id &&
                 item.size === size &&
                 item.color === color
-                  ? { ...item, quantity: newQty }
+                  ? { ...item, quantity: newQty, variantId: resolvedVariantId }
                   : item
               );
             }
@@ -289,7 +296,7 @@ export function StoreProvider({
                 quantity: initialQty,
                 size,
                 color,
-                variantId: selection.variantId,
+                variantId: resolvedVariantId,
               },
             ];
           });

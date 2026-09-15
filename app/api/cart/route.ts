@@ -87,6 +87,11 @@ export async function POST(request: Request) {
           { slug: productId },
         ],
       },
+      include: {
+        variants: {
+          orderBy: { createdAt: "asc" },
+        },
+      },
     });
 
     if (!product) {
@@ -100,17 +105,19 @@ export async function POST(request: Request) {
     let availableInventory = 999;
 
     if (variantId) {
-      const variant = await prisma.productVariant.findFirst({
-        where: {
-          id: variantId,
-          productId: product.id,
-        },
-      });
-
-      if (variant) {
-        resolvedVariantId = variant.id;
-        availableInventory = variant.inventory;
+      const variant = product.variants.find((v) => v.id === variantId);
+      if (!variant) {
+        return NextResponse.json(
+          { error: "Selected product variant is invalid for this product." },
+          { status: 400 }
+        );
       }
+      resolvedVariantId = variant.id;
+      availableInventory = variant.inventory;
+    } else if (product.variants.length > 0) {
+      const defaultVariant = product.variants[0];
+      resolvedVariantId = defaultVariant.id;
+      availableInventory = defaultVariant.inventory;
     }
 
     const cart = await prisma.cart.upsert({
