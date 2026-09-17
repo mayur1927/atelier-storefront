@@ -30,6 +30,7 @@ type DatabaseCartItem = {
   product: Product;
   variant?: {
     color?: string | null;
+    colour?: string | null;
     images?: { url: string }[];
   } | null;
 };
@@ -78,8 +79,9 @@ function convertDatabaseCart(items: DatabaseCartItem[]): CartItem[] {
         item.variant?.images?.[0]?.url ||
         product.image,
       quantity: item.quantity,
-      size: item.size || product.sizes[0],
+      size: item.size || product.sizes?.[0] || "Standard",
       color:
+        item.variant?.colour ||
         item.variant?.color ||
         product.colors?.[0] ||
         "",
@@ -223,7 +225,12 @@ export function StoreProvider({
           quantity?: number;
         } = {}
       ) => {
-        const defaultVariant = product.variants?.[0];
+        const defaultVariant =
+          product.variants?.find(
+            (v: any) =>
+              v.image === product.image ||
+              (Array.isArray(v.images) && v.images.includes(product.image))
+          ) || product.variants?.[0];
         const resolvedVariantId = selection.variantId ?? defaultVariant?.id;
         const size = selection.size ?? product.sizes?.[0] ?? "Standard";
         const color =

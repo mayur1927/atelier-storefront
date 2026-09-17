@@ -10,7 +10,10 @@ export function ProductCard({ product }: { product: Product | any }) {
   const inWishlist = wishlistIds.includes(product.id);
 
   const handleQuickAdd = () => {
-    const defaultVariant = product.variants?.[0];
+    const defaultVariant =
+      product.variants?.find(
+        (v: any) => v.image === product.image || v.images?.includes(product.image)
+      ) || product.variants?.[0];
     addToCart(product, {
       variantId: defaultVariant?.id,
       color: defaultVariant?.color || defaultVariant?.colour || product.colors?.[0] || "",

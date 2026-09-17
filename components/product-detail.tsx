@@ -9,17 +9,23 @@ import { Breadcrumbs, QuantityPicker } from "@/components/shared";
 
 export function ProductDetail({ product }: { product: Product }) {
   const variants = product.variants || [];
+  const defaultVariant =
+    variants.find(
+      (v) => v.image === product.image || v.images?.includes(product.image)
+    ) ||
+    variants[0] ||
+    null;
 
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
-    variants[0] || null
+    defaultVariant
   );
 
   const [size, setSize] = useState(product.sizes?.[0] || "Standard");
   const [color, setColor] = useState(
-    variants[0]?.color || product.colors?.[0] || ""
+    defaultVariant?.color || product.colors?.[0] || ""
   );
   const [selectedImage, setSelectedImage] = useState(
-    variants[0]?.image || product.image
+    defaultVariant?.image || product.image
   );
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState("Description");
@@ -60,34 +66,7 @@ export function ProductDetail({ product }: { product: Product }) {
       <div className="mt-6 grid gap-8 lg:grid-cols-[1.12fr_0.88fr] lg:gap-14">
 
         {/* PRODUCT IMAGES */}
-        <div className="grid gap-3 sm:grid-cols-[90px_1fr]">
-
-          {/* COLOUR IMAGE THUMBNAILS */}
-          {variants.length > 1 && (
-            <div className="order-2 flex gap-3 sm:order-1 sm:flex-col">
-              {variants.map((variant) => (
-                <button
-                  key={variant.id || variant.color}
-                  type="button"
-                  onClick={() => handleColorChange(variant)}
-                  aria-label={`View ${variant.color} product image`}
-                  aria-pressed={color === variant.color}
-                  className={`aspect-square w-16 overflow-hidden rounded-lg border-2 sm:w-auto ${
-                    color === variant.color
-                      ? "border-zinc-950"
-                      : "border-transparent"
-                  }`}
-                >
-                  <img
-                    src={variant.image || product.image}
-                    alt={`${product.name} in ${variant.color}`}
-                    className="h-full w-full object-cover"
-                  />
-                </button>
-              ))}
-            </div>
-          )}
-
+        <div>
           {/* MAIN IMAGE */}
           <div className="aspect-[4/5] overflow-hidden rounded-2xl bg-zinc-100">
             <img
