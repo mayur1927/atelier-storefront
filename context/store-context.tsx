@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { Product } from "@/lib/products";
@@ -101,6 +102,10 @@ export function StoreProvider({
   const [wishlistIds, setWishlistIds] = useState<string[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // Per-item mutation queue refs to ensure serialized background execution
+  const targetQuantityRef = useRef<Record<string, number | undefined>>({});
+  const isUpdatingRef = useRef<Record<string, boolean>>({});
 
   // Initialize: load user session and restore guest cart if guest
   useEffect(() => {
@@ -209,6 +214,61 @@ export function StoreProvider({
     loadWishlist();
   }, [user]);
 
+  // Serialized background worker for quantity updates per cart item
+  const processQuantityQueue = async (itemKey: string) => {
+    if (isUpdatingRef.current[itemKey]) return;
+    isUpdatingRef.current[itemKey] = true;
+
+    try {
+      while (targetQuantityRef.current[itemKey] !== undefined) {
+        const qtyToSend = targetQuantityRef.current[itemKey]!;
+        targetQuantityRef.current[itemKey] = undefined;
+
+        const response = await fetch("/api/cart", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            itemId: itemKey,
+            quantity: qtyToSend,
+          }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          console.error(data.error || "Failed to update cart quantity.");
+          // On server rejection (e.g. inventory limit), fetch authoritative cart to reconcile
+          const cartRes = await fetch("/api/cart");
+          if (cartRes.ok) {
+            const cartData = await cartRes.json();
+            setCart(convertDatabaseCart(cartData.items || []));
+          }
+          break;
+        }
+
+        const data = await response.json();
+        // If no newer click occurred during this request, reconcile state
+        if (targetQuantityRef.current[itemKey] === undefined && data && Array.isArray(data.items)) {
+          setCart(convertDatabaseCart(data.items));
+        }
+      }
+    } catch (error) {
+      console.error("Failed to sync cart quantity:", error);
+      const cartRes = await fetch("/api/cart");
+      if (cartRes.ok) {
+        const cartData = await cartRes.json();
+        setCart(convertDatabaseCart(cartData.items || []));
+      }
+    } finally {
+      isUpdatingRef.current[itemKey] = false;
+      // If a new update was queued right as we finished, process it
+      if (targetQuantityRef.current[itemKey] !== undefined) {
+        processQuantityQueue(itemKey);
+      }
+    }
+  };
+
   const value = useMemo(
     () => ({
       cart,
@@ -242,6 +302,44 @@ export function StoreProvider({
         const image = selection.image ?? defaultVariant?.image ?? product.image;
         const addQuantity = Math.max(1, selection.quantity ?? 1);
 
+        const selectedVariant = product.variants?.find(
+          (v) => v.id === resolvedVariantId || v.colour === color
+        );
+        const availableStock = selectedVariant ? selectedVariant.inventory : 999;
+
+        // 1. Optimistic local update immediately
+        setCart((items) => {
+          const existing = items.find(
+            (item) =>
+              item.id === product.id &&
+              item.size === size &&
+              (item.variantId ? item.variantId === resolvedVariantId : item.color === color)
+          );
+
+          if (existing) {
+            const newQty = Math.min(availableStock, existing.quantity + addQuantity);
+            return items.map((item) =>
+              item === existing
+                ? { ...item, quantity: newQty, variantId: resolvedVariantId }
+                : item
+            );
+          }
+
+          const initialQty = Math.min(availableStock, addQuantity);
+          return [
+            ...items,
+            {
+              ...product,
+              image,
+              quantity: initialQty,
+              size,
+              color,
+              variantId: resolvedVariantId,
+            },
+          ];
+        });
+
+        // 2. If authenticated, persist to server and perform item-scoped rollback on failure
         if (user) {
           try {
             const response = await fetch("/api/cart", {
@@ -260,53 +358,52 @@ export function StoreProvider({
             if (!response.ok) {
               const data = await response.json();
               console.error(data.error || "Failed to add item.");
+              // Item-scoped rollback: decrement/remove ONLY this specific addition
+              setCart((items) => {
+                const itemIdx = items.findIndex(
+                  (item) =>
+                    item.id === product.id &&
+                    item.size === size &&
+                    (item.variantId ? item.variantId === resolvedVariantId : item.color === color)
+                );
+                if (itemIdx === -1) return items;
+                const target = items[itemIdx];
+                const newQty = target.quantity - addQuantity;
+                if (newQty <= 0) {
+                  return items.filter((_, idx) => idx !== itemIdx);
+                }
+                const updated = [...items];
+                updated[itemIdx] = { ...target, quantity: newQty };
+                return updated;
+              });
               return;
             }
 
             const data = await response.json();
-            setCart(convertDatabaseCart(data.items || []));
+            if (data && Array.isArray(data.items)) {
+              setCart(convertDatabaseCart(data.items));
+            }
           } catch (error) {
             console.error("Failed to add item to cart:", error);
-          }
-        } else {
-          // Guest Cart: update local state & localStorage with inventory check
-          setCart((items) => {
-            const existing = items.find(
-              (item) =>
-                item.id === product.id &&
-                item.size === size &&
-                item.color === color
-            );
-
-            const selectedVariant = product.variants?.find(
-              (v) => v.id === resolvedVariantId || v.colour === color
-            );
-            const availableStock = selectedVariant ? selectedVariant.inventory : 999;
-
-            if (existing) {
-              const newQty = Math.min(availableStock, existing.quantity + addQuantity);
-              return items.map((item) =>
-                item.id === product.id &&
-                item.size === size &&
-                item.color === color
-                  ? { ...item, quantity: newQty, variantId: resolvedVariantId }
-                  : item
+            // Item-scoped rollback on network failure
+            setCart((items) => {
+              const itemIdx = items.findIndex(
+                (item) =>
+                  item.id === product.id &&
+                  item.size === size &&
+                  (item.variantId ? item.variantId === resolvedVariantId : item.color === color)
               );
-            }
-
-            const initialQty = Math.min(availableStock, addQuantity);
-            return [
-              ...items,
-              {
-                ...product,
-                image,
-                quantity: initialQty,
-                size,
-                color,
-                variantId: resolvedVariantId,
-              },
-            ];
-          });
+              if (itemIdx === -1) return items;
+              const target = items[itemIdx];
+              const newQty = target.quantity - addQuantity;
+              if (newQty <= 0) {
+                return items.filter((_, idx) => idx !== itemIdx);
+              }
+              const updated = [...items];
+              updated[itemIdx] = { ...target, quantity: newQty };
+              return updated;
+            });
+          }
         }
       },
 
@@ -316,71 +413,35 @@ export function StoreProvider({
         size?: string,
         color?: string
       ) => {
-        const item = cart.find(
-          (cartItem) =>
-            cartItem.id === id &&
-            (!size || cartItem.size === size) &&
-            (!color || cartItem.color === color)
-        );
+        let targetItem: CartItem | undefined;
 
-        if (!item) return;
+        // 1. Optimistic update immediately for instant user feedback
+        setCart((items) => {
+          targetItem = items.find(
+            (cartItem) =>
+              cartItem.id === id &&
+              (!size || cartItem.size === size) &&
+              (!color || cartItem.color === color)
+          );
 
-        if (user) {
-          if (!item.cartItemId) return;
+          if (!targetItem) return items;
 
-          try {
-            const response = await fetch("/api/cart", {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                itemId: item.cartItemId,
-                quantity,
-              }),
-            });
-
-            if (!response.ok) {
-              const data = await response.json();
-              console.error(data.error || "Failed to update cart.");
-              return;
-            }
-
-            const cartResponse = await fetch("/api/cart");
-            if (cartResponse.ok) {
-              const data = await cartResponse.json();
-              setCart(convertDatabaseCart(data.items || []));
-            }
-          } catch (error) {
-            console.error("Failed to update cart:", error);
-          }
-        } else {
-          // Guest mode
           if (quantity <= 0) {
-            setCart((items) =>
-              items.filter(
-                (cartItem) =>
-                  !(
-                    cartItem.id === id &&
-                    (!size || cartItem.size === size) &&
-                    (!color || cartItem.color === color)
-                  )
-              )
-            );
-          } else {
-            setCart((items) =>
-              items.map((cartItem) => {
-                if (
-                  cartItem.id === id &&
-                  (!size || cartItem.size === size) &&
-                  (!color || cartItem.color === color)
-                ) {
-                  return { ...cartItem, quantity };
-                }
-                return cartItem;
-              })
-            );
+            return items.filter((cartItem) => cartItem !== targetItem);
           }
+
+          return items.map((cartItem) =>
+            cartItem === targetItem ? { ...cartItem, quantity } : cartItem
+          );
+        });
+
+        // 2. If authenticated, queue serialized background mutation
+        if (user) {
+          if (!targetItem || !targetItem.cartItemId) return;
+
+          const itemKey = targetItem.cartItemId;
+          targetQuantityRef.current[itemKey] = quantity;
+          processQuantityQueue(itemKey);
         }
       },
 
@@ -389,17 +450,26 @@ export function StoreProvider({
         size?: string,
         color?: string
       ) => {
-        const item = cart.find(
-          (cartItem) =>
-            cartItem.id === id &&
-            (!size || cartItem.size === size) &&
-            (!color || cartItem.color === color)
-        );
+        let targetItem: CartItem | undefined;
 
-        if (!item) return;
+        // 1. Optimistic removal immediately
+        setCart((items) => {
+          targetItem = items.find(
+            (cartItem) =>
+              cartItem.id === id &&
+              (!size || cartItem.size === size) &&
+              (!color || cartItem.color === color)
+          );
 
+          if (!targetItem) return items;
+
+          return items.filter((cartItem) => cartItem !== targetItem);
+        });
+
+        // 2. If authenticated, delete on server in background with scoped rollback on failure
         if (user) {
-          if (!item.cartItemId) return;
+          if (!targetItem || !targetItem.cartItemId) return;
+          const removedItem = targetItem;
 
           try {
             const response = await fetch("/api/cart", {
@@ -408,34 +478,37 @@ export function StoreProvider({
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                itemId: item.cartItemId,
+                itemId: removedItem.cartItemId,
               }),
             });
 
             if (!response.ok) {
               const data = await response.json();
               console.error(data.error || "Failed to remove item.");
+              // Scoped rollback: restore only the item that failed to delete
+              setCart((items) => {
+                if (items.some((cartItem) => cartItem.cartItemId === removedItem.cartItemId)) {
+                  return items;
+                }
+                return [...items, removedItem];
+              });
               return;
             }
 
-            setCart((items) =>
-              items.filter((cartItem) => cartItem.cartItemId !== item.cartItemId)
-            );
+            const data = await response.json();
+            if (data && Array.isArray(data.items)) {
+              setCart(convertDatabaseCart(data.items));
+            }
           } catch (error) {
             console.error("Failed to remove item:", error);
+            // Scoped rollback on error
+            setCart((items) => {
+              if (items.some((cartItem) => cartItem.cartItemId === removedItem.cartItemId)) {
+                return items;
+              }
+              return [...items, removedItem];
+            });
           }
-        } else {
-          // Guest mode
-          setCart((items) =>
-            items.filter(
-              (cartItem) =>
-                !(
-                  cartItem.id === id &&
-                  (!size || cartItem.size === size) &&
-                  (!color || cartItem.color === color)
-                )
-            )
-          );
         }
       },
 

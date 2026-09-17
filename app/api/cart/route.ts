@@ -267,9 +267,23 @@ export async function PATCH(request: Request) {
       });
     }
 
-    return NextResponse.json({
-      message: "Cart updated successfully.",
+    const updatedCart = await prisma.cart.findUnique({
+      where: { id: cart.id },
+      include: {
+        items: {
+          include: {
+            product: true,
+            variant: {
+              include: {
+                images: true,
+              },
+            },
+          },
+        },
+      },
     });
+
+    return NextResponse.json(updatedCart);
   } catch (error) {
     logPrismaError("PATCH /api/cart", error);
 
@@ -332,9 +346,23 @@ export async function DELETE(request: Request) {
       where: { id: itemId },
     });
 
-    return NextResponse.json({
-      message: "Item removed from cart.",
+    const updatedCart = await prisma.cart.findUnique({
+      where: { id: cart.id },
+      include: {
+        items: {
+          include: {
+            product: true,
+            variant: {
+              include: {
+                images: true,
+              },
+            },
+          },
+        },
+      },
     });
+
+    return NextResponse.json(updatedCart);
   } catch (error) {
     logPrismaError("DELETE /api/cart", error);
 
