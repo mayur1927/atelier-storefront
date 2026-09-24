@@ -75,12 +75,12 @@ export const products: Product[] = [
     colors: ["Stone", "Ink"],
     sizes: ["S", "M", "L", "XL"],
     image:
-      "https://images.unsplash.com/photo-1596755389378-c31d21fd1273?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=900&q=80",
     variants: [
       {
         color: "Stone",
         image:
-          "https://images.unsplash.com/photo-1596755389378-c31d21fd1273?auto=format&fit=crop&w=900&q=80",
+          "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=900&q=80",
       },
       {
         color: "Ink",
