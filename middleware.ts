@@ -11,7 +11,7 @@ function getSecretKey() {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const isProtected = ["/profile", "/checkout", "/payment", "/order-success"].some(
+  const isProtected = ["/profile", "/checkout", "/payment", "/order-success", "/orders"].some(
     (route) => pathname === route || pathname.startsWith(route + "/")
   );
 
@@ -48,5 +48,6 @@ export const config = {
     "/checkout/:path*",
     "/payment/:path*",
     "/order-success/:path*",
+    "/orders/:path*",
   ],
 };

@@ -130,3 +130,77 @@ export async function DELETE(request: Request) {
     );
   }
 }
+
+export async function PUT(request: Request) {
+  try {
+    const userId = await getSessionUserId();
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Not authenticated." },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const id = typeof body.id === "string" ? body.id : "";
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Address ID is required." },
+        { status: 400 }
+      );
+    }
+
+    const existing = await prisma.address.findFirst({
+      where: { id, userId },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Address not found or unauthorized." },
+        { status: 404 }
+      );
+    }
+
+    const result = validateAddress({
+      fullName: body.fullName || body.name,
+      line1: body.line1 || body.address,
+      line2: body.line2,
+      city: body.city,
+      state: body.state,
+      postalCode: body.postalCode || body.zip,
+      country: body.country || "India",
+      phone: body.phone,
+    });
+
+    if (!result.valid || !result.data) {
+      return NextResponse.json(
+        { error: result.error || "Invalid address." },
+        { status: 400 }
+      );
+    }
+
+    const validated = result.data;
+
+    const updatedAddress = await prisma.address.update({
+      where: { id },
+      data: {
+        fullName: validated.fullName,
+        line1: validated.line1,
+        line2: validated.line2,
+        city: validated.city,
+        state: validated.state,
+        postalCode: validated.postalCode,
+        country: validated.country,
+        phone: validated.phone,
+      },
+    });
+
+    return NextResponse.json({ address: updatedAddress });
+  } catch (error) {
+    logPrismaError("PUT /api/addresses", error);
+    const message = error instanceof Error ? error.message : "Failed to update address.";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
