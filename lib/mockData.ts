@@ -316,7 +316,7 @@ export const products: Product[] = [
       {
         color: "Olive",
         image:
-          "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=900&q=80",
+          "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=900&q=80",
       },
     ],
     description:
@@ -344,7 +344,7 @@ export const products: Product[] = [
       {
         color: "Black",
         image:
-          "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=80",
+          "https://images.unsplash.com/photo-1508057198894-247b23fe5ade?auto=format&fit=crop&w=900&q=80",
       },
     ],
     description:
@@ -456,7 +456,7 @@ export const products: Product[] = [
       {
         color: "Clay",
         image:
-          "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=900&q=80",
+          "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?auto=format&fit=crop&w=900&q=80",
       },
     ],
     description:
@@ -484,7 +484,7 @@ export const products: Product[] = [
       {
         color: "Navy",
         image:
-          "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=80",
+          "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=80",
       },
     ],
     description:
