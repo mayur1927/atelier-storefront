@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, Landmark, Smartphone, WalletCards, Tag } from "lucide-react";
+import { CreditCard, Landmark, Smartphone, WalletCards, Tag, AlertTriangle } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/context/store-context";
@@ -381,7 +381,7 @@ export function PaymentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [discountAmount, setDiscountAmount] = useState(0);
-  const { cart, clearCart } = useStore();
+  const { cart, user, clearCart } = useStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -397,7 +397,7 @@ export function PaymentPage() {
   const options = [
     {
       id: "card",
-      label: "Credit / Debit card",
+      label: "Credit / Debit Card",
       icon: CreditCard,
       detail: "Visa · Mastercard · AMEX",
     },
@@ -409,7 +409,7 @@ export function PaymentPage() {
     },
     {
       id: "bank",
-      label: "Net banking",
+      label: "Net Banking",
       icon: Landmark,
       detail: "All major banks",
     },
@@ -419,9 +419,24 @@ export function PaymentPage() {
       icon: WalletCards,
       detail: "Store credit and wallets",
     },
+    ...(process.env.NODE_ENV === "development"
+      ? [
+          {
+            id: "test_failure",
+            label: "Simulated Failure (Dev Test)",
+            icon: AlertTriangle,
+            detail: "Test failure handling without affecting inventory or creating an order",
+          },
+        ]
+      : []),
   ];
 
   const pay = async () => {
+    if (!user) {
+      router.push("/login?redirect=/payment");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
 
@@ -446,6 +461,7 @@ export function PaymentPage() {
           addressId: shippingPayload.addressId,
           shipping: shippingPayload.shipping,
           saveAddress: Boolean(shippingPayload.saveAddress),
+          paymentMethod: method,
         }),
       });
 
@@ -457,11 +473,24 @@ export function PaymentPage() {
         return;
       }
 
+      const orderId = data.order?.id;
+      if (!orderId) {
+        setError("Order created successfully, but no order ID was returned. Please check your account orders.");
+        setSubmitting(false);
+        return;
+      }
+
+      const selectedOption = options.find((o) => o.id === method);
+      const pmLabel = selectedOption?.label || method;
+      sessionStorage.setItem(`atelier_pm_${orderId}`, pmLabel);
+      sessionStorage.setItem("atelier_last_pm", pmLabel);
+
       sessionStorage.removeItem("atelier_shipping");
       sessionStorage.removeItem("atelier_coupon");
       sessionStorage.removeItem("atelier_discount");
       clearCart();
-      router.push("/order-success");
+
+      router.push(`/order-success?orderId=${encodeURIComponent(orderId)}`);
     } catch {
       setError("An unexpected error occurred while processing your order.");
       setSubmitting(false);
@@ -476,6 +505,21 @@ export function PaymentPage() {
       <h1 className="mt-2 text-3xl font-black tracking-[-0.05em]">
         Select payment method
       </h1>
+
+      {!user && (
+        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-bold">Account required to complete checkout</p>
+          <p className="mt-1 text-xs text-amber-800">
+            Please sign in to your Atelier account to place this order securely.
+          </p>
+          <button
+            onClick={() => router.push("/login?redirect=/payment")}
+            className="mt-3 rounded-lg bg-amber-900 px-4 py-2 text-xs font-bold text-white hover:bg-amber-950"
+          >
+            SIGN IN TO CONTINUE
+          </button>
+        </div>
+      )}
 
       <div className="mt-7 space-y-3">
         {options.map(({ id, label, icon: Icon, detail }) => (
@@ -517,7 +561,7 @@ export function PaymentPage() {
 
       <button
         onClick={pay}
-        disabled={submitting || !cart.length}
+        disabled={submitting || !cart.length || !user}
         className="mt-6 w-full rounded-xl bg-zinc-950 py-4 text-xs font-bold tracking-[0.12em] text-white hover:bg-zinc-700 disabled:opacity-50"
       >
         {submitting ? "PROCESSING..." : `PAY $${priceDetails(cart, discountAmount).total.toFixed(2)}`}

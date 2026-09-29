@@ -23,7 +23,7 @@ export async function middleware(request: NextRequest) {
 
   if (!token) {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
+    loginUrl.searchParams.set("redirect", pathname + request.nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }
 
@@ -31,13 +31,13 @@ export async function middleware(request: NextRequest) {
     const { payload } = await jwtVerify(token, getSecretKey());
     if (!payload.userId || typeof payload.userId !== "string") {
       const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("redirect", pathname);
+      loginUrl.searchParams.set("redirect", pathname + request.nextUrl.search);
       return NextResponse.redirect(loginUrl);
     }
     return NextResponse.next();
   } catch {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
+    loginUrl.searchParams.set("redirect", pathname + request.nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }
 }

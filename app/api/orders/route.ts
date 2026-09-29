@@ -49,6 +49,18 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+
+    // Development-only payment failure simulation
+    if (
+      process.env.NODE_ENV === "development" &&
+      (body.paymentMethod === "test_failure" || body.simulateFailure === true)
+    ) {
+      return NextResponse.json(
+        { error: "Simulated payment failure. Your payment was declined (test mode)." },
+        { status: 402 }
+      );
+    }
+
     const couponCode = typeof body.couponCode === "string" ? body.couponCode.trim().toUpperCase() : null;
 
     // Resolve shipping address
