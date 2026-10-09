@@ -38,6 +38,18 @@ export function CatalogPage({
     return Array.from(new Set(products.map((p) => p.brand))).filter(Boolean);
   }, [brands, products]);
 
+  const catalogMinPrice = useMemo(() => {
+    if (!products || products.length === 0) return 0;
+    const min = Math.min(...products.map((p) => p.price));
+    return Math.max(0, Math.floor(min));
+  }, [products]);
+
+  const catalogMaxPrice = useMemo(() => {
+    if (!products || products.length === 0) return 200;
+    const max = Math.max(...products.map((p) => p.price));
+    return Math.max(catalogMinPrice, Math.ceil(max));
+  }, [products, catalogMinPrice]);
+
   const [selectedCategories, setSelectedCategories] = useState<string[]>(() => {
     if (!initialCategory || initialCategory === "all") return [];
     const found = derivedCategories.find(
@@ -47,7 +59,9 @@ export function CatalogPage({
   });
 
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
-  const [maxPrice, setMaxPrice] = useState(200);
+  const [maxPriceState, setMaxPriceState] = useState<number | null>(null);
+  const maxPrice = maxPriceState !== null ? maxPriceState : catalogMaxPrice;
+
   const [sizes, setSizes] = useState<string[]>([]);
   const [colors, setColors] = useState<string[]>([]);
   const [sort, setSort] = useState("popularity");
@@ -109,7 +123,7 @@ export function CatalogPage({
   const reset = () => {
     setSelectedCategories([]);
     setSelectedBrands([]);
-    setMaxPrice(200);
+    setMaxPriceState(null);
     setSizes([]);
     setColors([]);
     setPage(1);
@@ -143,19 +157,20 @@ export function CatalogPage({
         <input
           aria-label="Maximum price"
           type="range"
-          min="25"
-          max="200"
-          step="5"
-          value={maxPrice}
+          min={catalogMinPrice}
+          max={catalogMaxPrice}
+          step={catalogMaxPrice - catalogMinPrice > 50 ? 5 : 1}
+          value={Math.min(maxPrice, catalogMaxPrice)}
           onChange={(event) => {
-            setMaxPrice(Number(event.target.value));
+            setMaxPriceState(Number(event.target.value));
             setPage(1);
           }}
+          disabled={catalogMinPrice >= catalogMaxPrice}
           className="w-full accent-zinc-900"
         />
         <div className="mt-1 flex justify-between text-xs text-zinc-400">
-          <span>$0</span>
-          <span>$200</span>
+          <span>${catalogMinPrice}</span>
+          <span>${catalogMaxPrice}</span>
         </div>
       </FilterTitle>
 
